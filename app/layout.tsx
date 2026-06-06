@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Sarabun, Geist_Mono } from "next/font/google";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
+import { MuiThemeProvider } from "./mui-theme-provider";
 import "./globals.css";
 import { Toaster } from "sonner";
 
@@ -25,13 +27,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="th"
-      className={`${sarabun.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        {children}
-        <Toaster richColors position="top-right" />
+    <html lang="th" className={`${sarabun.variable} ${geistMono.variable}`}>
+      <body>
+        <AppRouterCacheProvider>
+          <MuiThemeProvider>
+            {children}
+            <Toaster position="top-right" closeButton />
+          </MuiThemeProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

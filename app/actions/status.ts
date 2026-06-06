@@ -1,22 +1,19 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { auth } from "@/auth";
 import { logToSystem } from "@/lib/logger";
 import { summarizeChatCore } from "./summarize";
 import { revalidatePath } from "next/cache";
 import { getGeminiApiKey, getLineChannelSecret, getLineAccessToken } from "@/lib/settings";
 import { encrypt } from "@/lib/encryption";
+import { requireAdmin } from "@/lib/authz";
 
 function isConfigured(value: string | undefined, placeholder: string): boolean {
   return Boolean(value && value !== placeholder && value.trim() !== "");
 }
 
 export async function getSystemStatus() {
-  const session = await auth();
-  if (!session?.user) {
-    throw new Error("Unauthorized");
-  }
+  await requireAdmin();
 
   // 1. Check DB Connection
   let dbConnected = false;
@@ -126,10 +123,7 @@ export async function getSystemStatus() {
 }
 
 export async function getSystemLogs() {
-  const session = await auth();
-  if (!session?.user) {
-    throw new Error("Unauthorized");
-  }
+  await requireAdmin();
 
   try {
     const logs = await prisma.systemLog.findMany({
@@ -143,17 +137,14 @@ export async function getSystemLogs() {
 }
 
 export async function clearSystemLogs() {
-  const session = await auth();
-  if (!session?.user) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireAdmin();
 
   try {
     await prisma.systemLog.deleteMany({});
     await logToSystem(
       "system",
       "info",
-      `System logs cleared by user ${session.user.name || session.user.email}`
+      `System logs cleared by user ${user.name || user.email}`
     );
     revalidatePath("/");
     return { success: true };
@@ -163,10 +154,7 @@ export async function clearSystemLogs() {
 }
 
 export async function triggerDailySummaryJob() {
-  const session = await auth();
-  if (!session?.user) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireAdmin();
 
   try {
     const groups = await prisma.lineGroup.findMany();
@@ -177,7 +165,7 @@ export async function triggerDailySummaryJob() {
     await logToSystem(
       "cron",
       "info",
-      `Manual Daily Summary Job triggered by ${session.user.name || session.user.email}`
+      `Manual Daily Summary Job triggered by ${user.name || user.email}`
     );
 
     for (const group of groups) {
@@ -226,10 +214,7 @@ export async function saveSystemSettings(data: {
   lineChannelSecret?: string;
   lineChannelAccessToken?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireAdmin();
 
   try {
     const updateData: any = {};
@@ -259,7 +244,7 @@ export async function saveSystemSettings(data: {
     await logToSystem(
       "system",
       "info",
-      `System configurations updated by user ${session.user.name || session.user.email}`,
+      `System configurations updated by user ${user.name || user.email}`,
       `Updated config fields: ${updatedKeys.join(", ") || "none"}`
     );
 

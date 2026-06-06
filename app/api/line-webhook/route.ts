@@ -6,26 +6,26 @@ import { getLineChannelSecret, getLineAccessToken } from "@/lib/settings";
 
 // Deterministic colors for new groups
 const GROUP_COLORS = [
-  "bg-emerald-500 text-white",
-  "bg-rose-500 text-white",
-  "bg-blue-500 text-white",
-  "bg-amber-500 text-white",
-  "bg-purple-500 text-white",
-  "bg-teal-500 text-white",
-  "bg-pink-500 text-white",
-  "bg-indigo-500 text-white"
+  "#10b981",
+  "#f43f5e",
+  "#3b82f6",
+  "#f59e0b",
+  "#a855f7",
+  "#14b8a6",
+  "#ec4899",
+  "#6366f1"
 ];
 
 // Deterministic colors for new contributors
 const CONTRIBUTOR_COLORS = [
-  "bg-indigo-500",
-  "bg-emerald-500",
-  "bg-rose-500",
-  "bg-amber-500",
-  "bg-purple-500",
-  "bg-teal-500",
-  "bg-sky-500",
-  "bg-pink-500"
+  "#6366f1",
+  "#10b981",
+  "#f43f5e",
+  "#f59e0b",
+  "#a855f7",
+  "#14b8a6",
+  "#0ea5e9",
+  "#ec4899"
 ];
 
 function getDeterministicGroupColor(groupId: string): string {
@@ -45,6 +45,24 @@ function getDeterministicContributorColor(name: string): string {
   const colorIndex = Math.abs(hash) % CONTRIBUTOR_COLORS.length;
   return CONTRIBUTOR_COLORS[colorIndex];
 }
+
+type LineWebhookPayload = {
+  events?: LineWebhookEvent[];
+};
+
+type LineWebhookEvent = {
+  type?: string;
+  timestamp?: number;
+  source?: {
+    type?: string;
+    groupId?: string;
+    userId?: string;
+  };
+  message?: {
+    type?: string;
+    text?: string;
+  };
+};
 
 function isConfiguredSecret(secret: string | undefined): secret is string {
   return Boolean(
@@ -172,21 +190,22 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Parse Events
-    let payload;
+    let payload: LineWebhookPayload;
     try {
-      payload = JSON.parse(rawBody);
-    } catch (err: any) {
+      payload = JSON.parse(rawBody) as LineWebhookPayload;
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       console.error("Failed to parse body JSON:", err);
       await logToSystem(
         "webhook",
         "error",
         "Failed to parse body JSON in Webhook",
-        err?.message || String(err)
+        errorMessage
       );
       return new NextResponse("Invalid JSON", { status: 400 });
     }
 
-    const events = payload.events || [];
+    const events = Array.isArray(payload.events) ? payload.events : [];
     const accessToken = await getLineAccessToken();
     let processedCount = 0;
 
@@ -249,7 +268,7 @@ export async function POST(request: NextRequest) {
         const avatarColor = dbGroup ? dbGroup.avatarColor : getDeterministicGroupColor(groupId);
 
         const formattedLine = `[${timeString}] ${senderName}: ${messageText}`;
-        const updatedRawChat = dbGroup
+        const updatedRawChat = dbGroup && dbGroup.rawChat && dbGroup.rawChat.trim() !== ""
           ? `${dbGroup.rawChat}\n${formattedLine}`
           : `[LINE Chat Log] ${groupName}\n${formattedLine}`;
 

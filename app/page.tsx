@@ -1,18 +1,19 @@
-import { auth } from "@/auth";
 import { DashboardApp } from "@/components/DashboardApp";
+import { requireAdmin } from "@/lib/authz";
 import { redirect } from "next/navigation";
 
 export default async function Home() {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect("/login");
+  let user;
+  try {
+    user = await requireAdmin();
+  } catch {
+    redirect("/auth/redirect");
   }
 
   return (
     <DashboardApp
-      userName={session.user.name}
-      userEmail={session.user.email}
+      userName={user.name}
+      userEmail={user.email}
     />
   );
 }

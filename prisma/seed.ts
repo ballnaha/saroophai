@@ -15,7 +15,7 @@ async function main() {
     data: {
       id: "grp_01",
       name: "PSC Development Team",
-      avatarColor: "bg-emerald-500 text-white",
+      avatarColor: "#10b981",
       unreadCount: 4,
       lastActive: "15:42",
       membersCount: 12,
@@ -27,9 +27,9 @@ async function main() {
       sentiment: "Positive",
       sentimentScore: 82,
       summaryOverall: "การพูดคุยในวันนี้เน้นไปที่การเตรียม Deploy ระบบขึ้น Staging Environment สำหรับโปรเจกต์แผนงานใหม่ รวมถึงการแก้ไข UI บั๊กในหน้า Dashboard และการเตรียมข้อมูลนำเสนอผู้บริหารวันจันทร์หน้า",
-      summaryMorning: "ทีมตกลงแก้ไขปัญหา CSS Layout ของหน้า Dashboard ที่แสดงผลเพี้ยนในขนาดหน้าจอ iPad Pro โดย Thanya รับไปดำเนินการและอัปเดตโค้ดเข้า GitHub ในช่วงสาย",
-      summaryAfternoon: "Kittisak (QA) รายงานพบบั๊กเพิ่มเติมในระบบกรองข้อมูลวันที่ในหน้าสร้างแผน ซึ่งทีมตกลงว่าจะแก้ไขหลังจากการ Deploy รอบแรกผ่านไปแล้ว เพื่อไม่ให้กระทบกำหนดการ",
-      summaryEvening: "Nattapon (PM) สรุปกำหนดการนัดซ้อมนำเสนอเดโมงานจริงวันพรุ่งนี้เวลา 10:00 น. และย้ำเตือนให้ทุกคนตรวจสอบความเรียบร้อยของหน้าเว็บสำหรับเตรียมแสดงผลจริง",
+      summaryMorning: "- ทีมตกลงแก้ไขปัญหา CSS Layout ของหน้า Dashboard ที่แสดงผลเพี้ยนในขนาดหน้าจอ iPad Pro\n- Thanya รับไปดำเนินการและอัปเดตโค้ดเข้า GitHub ในช่วงสาย",
+      summaryAfternoon: "- Kittisak (QA) รายงานพบบั๊กเพิ่มเติมในระบบกรองข้อมูลวันที่ในหน้าสร้างแผน\n- ทีมตกลงว่าจะแก้ไขหลังจากการ Deploy รอบแรกผ่านไปแล้ว เพื่อไม่ให้กระทบกำหนดการ",
+      summaryEvening: "- Nattapon (PM) สรุปกำหนดการนัดซ้อมนำเสนอเดโมงานจริงวันพรุ่งนี้เวลา 10:00 น.\n- ย้ำเตือนให้ทุกคนตรวจสอบความเรียบร้อยของหน้าเว็บสำหรับเตรียมแสดงผลจริง",
       hourlyActivity: [5, 2, 0, 0, 0, 0, 3, 15, 32, 28, 18, 12, 10, 45, 55, 30, 22, 14, 8, 4, 10, 6, 2, 1],
       rawChat: `[LINE Chat Log] PSC Development Team
 [09:15] Nattapon (PM): สวัสดีครับทุกคน วันนี้มีการบ้านด่วนเรื่องหน้า Dashboard มีคนรายงานว่าแสดงผลเพี้ยนบน iPad Pro แนวตั้ง รบกวนใครว่างช่วยดูหน่อยครับ
@@ -47,10 +47,10 @@ async function main() {
 [16:30] Nattapon (PM): สรุปตามนี้ครับ พรุ่งนี้ 10 โมงเช้า รบกวนทุกคนเข้าซ้อมเดโมตัวระบบที่จะพรีเซนต์ให้ผู้บริหารวันจันทร์ด้วยนะครับ เดี๋ยวผมทำสไลด์พรีเซนต์รอไว้`,
       contributors: {
         create: [
-          { name: "Thanya (Dev)", messagesCount: 52, avatarColor: "bg-indigo-500" },
-          { name: "Kittisak (QA)", messagesCount: 38, avatarColor: "bg-amber-500" },
-          { name: "Nattapon (PM)", messagesCount: 31, avatarColor: "bg-rose-500" },
-          { name: "Somsak (UX)", messagesCount: 22, avatarColor: "bg-teal-500" },
+          { name: "Thanya (Dev)", messagesCount: 52, avatarColor: "#6366f1" },
+          { name: "Kittisak (QA)", messagesCount: 38, avatarColor: "#f59e0b" },
+          { name: "Nattapon (PM)", messagesCount: 31, avatarColor: "#f43f5e" },
+          { name: "Somsak (UX)", messagesCount: 22, avatarColor: "#14b8a6" },
         ]
       },
       actionItems: {
@@ -100,7 +100,7 @@ async function main() {
     data: {
       id: "grp_02",
       name: "Sales & Marketing Sync",
-      avatarColor: "bg-rose-500 text-white",
+      avatarColor: "#f43f5e",
       unreadCount: 0,
       lastActive: "12:15",
       membersCount: 8,
@@ -112,9 +112,9 @@ async function main() {
       sentiment: "Mixed",
       sentimentScore: 61,
       summaryOverall: "การคุยเน้นเรื่องยอดขายประจำเดือนพฤษภาคมที่ต่ำกว่าเป้าเล็กน้อย และการจัดทำโปรโมชัน Mid-Year Sale ที่ต้องรีบสรุปเพื่อเตรียมทำแบนเนอร์โฆษณาในสัปดาห์หน้า",
-      summaryMorning: "Kanya เสนอรายงานยอดขายและคาดการณ์ยอดสั่งซื้อของไตรมาสที่ 2 โดยมีประเด็นเรื่องลูกค้ารายใหญ่ในเขตอุตสาหกรรมชะลอการสั่งซื้อ",
-      summaryAfternoon: "ทีมตกลงรายละเอียดกิจกรรมโปรโมชัน ลด 15% สำหรับสินค้ากลุ่มไอที และแถมของพรีเมียมเมื่อซื้อครบ 5,000 บาท โดยจะจัดแคมเปญ 15-25 มิถุนายนนี้",
-      summaryEvening: "ไม่มีการคุยที่มีนัยสำคัญ มีเพียงการส่งข้อมูลไฟล์ตัวอย่างโบรชัวร์โฆษณาจากฝ่ายกราฟิกมาเพื่อให้พิจารณารูปแบบเบื้องต้น",
+      summaryMorning: "- Kanya เสนอรายงานยอดขายและคาดการณ์ยอดสั่งซื้อของไตรมาสที่ 2\n- พบประเด็นลูกค้ารายใหญ่ชะลอคำสั่งซื้อเพื่อทบทวนงบประมาณ",
+      summaryAfternoon: "- ทีมตกลงจัดโปรโมชัน Mid-Year Sale (15-25 มิถุนายนนี้)\n- ลดสูงสุด 15% กลุ่มสินค้าไอที และแถมของขวัญเมื่อช้อปครบ 5,000 บาท",
+      summaryEvening: "- ฝ่ายกราฟิกดีไซเนอร์ส่งแบนเนอร์หลัก 3 ขนาดสำหรับโปรโมตใน Social Media\n- Kanya เตรียมประสานงานตรวจสอบราคาต้นทุนสินค้ากับฝ่ายจัดซื้อต่อในวันพรุ่งนี้",
       hourlyActivity: [0, 0, 0, 0, 0, 0, 1, 8, 25, 20, 15, 12, 4, 10, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0],
       rawChat: `[LINE Chat Log] Sales & Marketing Sync
 [09:30] Prasert (VP): ยอดขายเดือนพฤษภาคมส่งมาหรือยังครับ ทำไมรู้สึกเหมือนเราจะไม่ถึงเป้า
@@ -127,10 +127,10 @@ async function main() {
 [16:40] Kanya (Sales): ขอบคุณค่ะ เดี๋ยวพรุ่งนี้ส่งราคาต้นทุนหลังจัดซื้อเคาะเสร็จให้นะคะ`,
       contributors: {
         create: [
-          { name: "Kanya (Sales)", messagesCount: 35, avatarColor: "bg-purple-500" },
-          { name: "Vichai (Mkt)", messagesCount: 30, avatarColor: "bg-emerald-500" },
-          { name: "Prasert (VP)", messagesCount: 20, avatarColor: "bg-amber-500" },
-          { name: "Sarah (Admin)", messagesCount: 10, avatarColor: "bg-sky-500" },
+          { name: "Kanya (Sales)", messagesCount: 35, avatarColor: "#a855f7" },
+          { name: "Vichai (Mkt)", messagesCount: 30, avatarColor: "#10b981" },
+          { name: "Prasert (VP)", messagesCount: 20, avatarColor: "#f59e0b" },
+          { name: "Sarah (Admin)", messagesCount: 10, avatarColor: "#0ea5e9" },
         ]
       },
       actionItems: {
@@ -170,7 +170,7 @@ async function main() {
     data: {
       id: "grp_03",
       name: "ประสานงานลูกค้า (SCG Project)",
-      avatarColor: "bg-blue-500 text-white",
+      avatarColor: "#3b82f6",
       unreadCount: 15,
       lastActive: "15:52",
       membersCount: 6,
@@ -198,9 +198,9 @@ async function main() {
 [15:45] Client Contact: ยอดเยี่ยมเลยครับ สะดวกรวดเร็วมาก ถ้าเอกสารผ่านแล้ว สัปดาห์หน้าเรานัดประชุมสรุปงานเฟสแรกกันต่อนะครับ ขอบคุณทีมงานมากครับ`,
       contributors: {
         create: [
-          { name: "Client Contact", messagesCount: 25, avatarColor: "bg-yellow-600" },
-          { name: "Thanya (Dev)", messagesCount: 12, avatarColor: "bg-indigo-500" },
-          { name: "Nattapon (PM)", messagesCount: 5, avatarColor: "bg-rose-500" },
+          { name: "Client Contact", messagesCount: 25, avatarColor: "#ca8a04" },
+          { name: "Thanya (Dev)", messagesCount: 12, avatarColor: "#6366f1" },
+          { name: "Nattapon (PM)", messagesCount: 5, avatarColor: "#f43f5e" },
         ]
       }
       // Note: No initial action items or topics as it is in 'idle' state.

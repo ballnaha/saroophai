@@ -2,17 +2,33 @@
 
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
+import { IconButton, Tooltip } from "@mui/material";
 
 export function SignOutButton() {
   return (
-    <button
-      type="button"
-      onClick={() => signOut({ callbackUrl: "/login" })}
-      className="h-9 rounded-xl border border-zinc-200 bg-white px-3.5 text-sm font-bold text-zinc-700 transition-all hover:bg-zinc-550/10 active:scale-[0.98] flex items-center gap-2 shadow-sm cursor-pointer"
-      title="Sign out"
-    >
-      <LogOut className="size-4" />
-      Sign out
-    </button>
+    <Tooltip title="ออกจากระบบ" placement="bottom">
+      <IconButton
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        sx={{
+          color: "#71717a",
+          borderRadius: 2,
+          width: 36,
+          height: 36,
+          border: "1px solid #e4e4e7",
+          bgcolor: "#fff",
+          transition: "all 150ms ease",
+          "&:hover": {
+            borderColor: "#d4d4d8",
+            bgcolor: "#f4f4f5",
+            color: "#e11d48", // soft destructive red on hover
+          },
+          "&:active": {
+            transform: "scale(0.95)",
+          },
+        }}
+      >
+        <LogOut size={16} />
+      </IconButton>
+    </Tooltip>
   );
 }

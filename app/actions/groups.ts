@@ -1,21 +1,11 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { auth } from "@/auth";
-
-async function requireUser() {
-  const session = await auth();
-
-  if (!session?.user) {
-    throw new Error("Unauthorized");
-  }
-
-  return session.user;
-}
+import { requireAdmin } from "@/lib/authz";
 
 export async function getLineGroups() {
   try {
-    await requireUser();
+    await requireAdmin();
 
     const dbGroups = await prisma.lineGroup.findMany({
       include: {
@@ -83,7 +73,7 @@ export async function getLineGroups() {
 
 export async function toggleActionItemDb(itemId: string, status: "pending" | "completed") {
   try {
-    await requireUser();
+    await requireAdmin();
 
     const updated = await prisma.actionItem.update({
       where: { id: itemId },

@@ -3,9 +3,9 @@
 import { GoogleGenAI } from "@google/genai";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { auth } from "@/auth";
 import { logToSystem } from "@/lib/logger";
 import { getGeminiApiKey } from "@/lib/settings";
+import { requireAdmin } from "@/lib/authz";
 
 interface SummarizeResult {
   success: boolean;
@@ -14,9 +14,9 @@ interface SummarizeResult {
 }
 
 export async function summarizeChat(groupId: string, rawChat: string): Promise<SummarizeResult> {
-  const session = await auth();
-
-  if (!session?.user) {
+  try {
+    await requireAdmin();
+  } catch {
     return {
       success: false,
       error: "Unauthorized",
@@ -27,6 +27,38 @@ export async function summarizeChat(groupId: string, rawChat: string): Promise<S
 }
 
 export async function summarizeChatCore(groupId: string, rawChat: string): Promise<SummarizeResult> {
+  const dbGroup = await prisma.lineGroup.findUnique({
+    where: { id: groupId }
+  });
+
+  // If already completed and no unread messages, skip summarization
+  if (dbGroup && dbGroup.syncStatus === "completed" && dbGroup.unreadCount === 0) {
+    return {
+      success: false,
+      error: "ไม่มีข้อความใหม่ที่ต้องการสรุปข้อมูลในขณะนี้",
+    };
+  }
+
+  // Check if rawChat is empty or only contains the header line
+  const cleanedChat = rawChat ? rawChat.trim() : "";
+  const lines = cleanedChat.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+  const hasMessages = lines.some(l => /^\[\d{2}:\d{2}\]/.test(l));
+
+  if (!cleanedChat || lines.length <= 1 || !hasMessages) {
+    await prisma.lineGroup.update({
+      where: { id: groupId },
+      data: {
+        syncStatus: dbGroup?.summaryOverall ? "completed" : "idle",
+        syncError: null,
+      }
+    });
+
+    return {
+      success: false,
+      error: "ไม่มีข้อความใหม่ที่ต้องการสรุปข้อมูลในขณะนี้",
+    };
+  }
+
   const apiKey = await getGeminiApiKey();
 
   if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE" || apiKey.trim() === "") {
@@ -63,7 +95,8 @@ Guidelines:
 2. For action items, extract tasks, who they are assigned to, and the deadline if mentioned. If no assignee is explicitly named, try to infer it from context or write "ไม่ระบุ".
 3. Evaluate the overall chat sentiment (Positive, Neutral, Mixed, or Negative) and give a sentiment score out of 100 representing positive mood level.
 4. Categorize topics into work, urgent, finance, social, or general. Evaluate relevance (0 to 100).
-5. Extract key bullet points for each topic.`;
+5. Extract key bullet points for each topic.
+6. For morning, afternoon, and evening summaries, ALWAYS format the output as a list of bullet points starting with "- " and separated by newlines (e.g. "- point 1\n- point 2"). Avoid long continuous paragraphs for these fields.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -91,9 +124,9 @@ Guidelines:
               type: "object",
               properties: {
                 overall: { type: "string", description: "Brief high-level summary paragraph of the day's discussion" },
-                morning: { type: "string", description: "Summary of discussion happening in morning hours" },
-                afternoon: { type: "string", description: "Summary of discussion happening in afternoon hours" },
-                evening: { type: "string", description: "Summary of discussion happening in evening or night hours" }
+                morning: { type: "string", description: "Summary of discussion happening in morning hours, formatted as bullet points starting with '- ' and separated by newlines." },
+                afternoon: { type: "string", description: "Summary of discussion happening in afternoon hours, formatted as bullet points starting with '- ' and separated by newlines." },
+                evening: { type: "string", description: "Summary of discussion happening in evening or night hours, formatted as bullet points starting with '- ' and separated by newlines." }
               },
               required: ["overall", "morning", "afternoon", "evening"]
             },

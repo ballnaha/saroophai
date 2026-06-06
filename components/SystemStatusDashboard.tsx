@@ -22,6 +22,35 @@ import {
   saveSystemSettings,
   triggerDailySummaryJob,
 } from "@/app/actions/status";
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Drawer,
+  IconButton,
+  LinearProgress,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tabs,
+  TextField,
+  Typography,
+} from "@mui/material";
 
 type TabType = "env" | "webhook" | "logs" | "cron";
 type LogEntry = {
@@ -57,29 +86,23 @@ type SystemStatus = {
   };
 };
 
-const tabItems: Array<{ id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+const tabItems: Array<{ id: TabType; label: string; icon: React.ComponentType<{ size?: number; color?: string }> }> = [
   { id: "env", label: "API Settings", icon: Lock },
   { id: "webhook", label: "LINE Webhook", icon: Activity },
   { id: "logs", label: "System Logs", icon: Terminal },
   { id: "cron", label: "Daily Cron", icon: Clock },
 ];
 
-function statusBadge(isOk: boolean) {
-  return isOk
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-    : "bg-rose-50 text-rose-700 border-rose-200";
-}
-
-function levelBadge(level: string) {
-  if (level === "error") return "text-rose-700 bg-rose-50 border-rose-200";
-  if (level === "warning") return "text-amber-700 bg-amber-50 border-amber-200";
-  return "text-emerald-700 bg-emerald-50 border-emerald-200";
-}
-
 function levelLabel(level: string) {
   if (level === "error") return "Error";
   if (level === "warning") return "Warning";
   return "Success";
+}
+
+function levelColor(level: string) {
+  if (level === "error") return { bg: "#fff1f2", color: "#e11d48", border: "#fecdd3" };
+  if (level === "warning") return { bg: "#fffbeb", color: "#d97706", border: "#fde68a" };
+  return { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" };
 }
 
 export function SystemStatusDashboard() {
@@ -102,9 +125,7 @@ export function SystemStatusDashboard() {
     try {
       const [statusRes, logsRes] = await Promise.all([getSystemStatus(), getSystemLogs()]);
       setStatusData(statusRes);
-      if (logsRes.success && logsRes.data) {
-        setLogs(logsRes.data as LogEntry[]);
-      }
+      if (logsRes.success && logsRes.data) setLogs(logsRes.data as LogEntry[]);
     } catch (err: unknown) {
       toast.error(`โหลดสถานะระบบไม่สำเร็จ: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -113,21 +134,13 @@ export function SystemStatusDashboard() {
   };
 
   useEffect(() => {
-    queueMicrotask(() => {
-      void loadData();
-    });
+    queueMicrotask(() => void loadData());
   }, []);
 
   const filteredLogs = useMemo(
-    () =>
-      logs.filter((log) => {
-        const matchType = typeFilter === "all" || log.type === typeFilter;
-        const matchLevel = levelFilter === "all" || log.level === levelFilter;
-        return matchType && matchLevel;
-      }),
+    () => logs.filter((log) => (typeFilter === "all" || log.type === typeFilter) && (levelFilter === "all" || log.level === levelFilter)),
     [logs, typeFilter, levelFilter]
   );
-
   const webhookLogs = useMemo(() => logs.filter((log) => log.type === "webhook").slice(0, 10), [logs]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -136,7 +149,6 @@ export function SystemStatusDashboard() {
       toast.warning("กรุณากรอกข้อมูลอย่างน้อย 1 รายการ");
       return;
     }
-
     setIsSavingConfig(true);
     try {
       const res = await saveSystemSettings({
@@ -144,7 +156,6 @@ export function SystemStatusDashboard() {
         ...(lineChannelSecretInput ? { lineChannelSecret: lineChannelSecretInput } : {}),
         ...(lineChannelAccessTokenInput ? { lineChannelAccessToken: lineChannelAccessTokenInput } : {}),
       });
-
       if (res.success) {
         toast.success("บันทึกการตั้งค่าเรียบร้อย");
         setGeminiApiKeyInput("");
@@ -198,456 +209,350 @@ export function SystemStatusDashboard() {
 
   if (isLoading && !statusData) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 text-zinc-500">
-        <RefreshCw className="mb-3 size-8 animate-spin text-emerald-600" />
-        <p className="text-sm font-semibold">กำลังโหลดสถานะระบบ...</p>
-      </div>
+      <Box sx={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", bgcolor: "#f6f8fb" }}>
+        <Stack spacing={2} sx={{ alignItems: "center", color: "#52525b" }}>
+          <CircularProgress size={42} thickness={4} sx={{ color: "#059669" }} />
+          <Typography sx={{ fontSize: 14, fontWeight: 500 }}>กำลังโหลดสถานะระบบ...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   const config = statusData?.config ?? {};
   const webhookStats = statusData?.stats?.webhook ?? { total: 0, success: 0, failed: 0, warning: 0 };
-  const configItems = Object.values(config) as Array<{ name: string; isConfigured: boolean; description?: string }>;
+  const configItems = Object.values(config).filter(Boolean) as ConfigItem[];
   const configuredCount = configItems.filter((item) => item.isConfigured).length;
   const progressPercent = configItems.length ? Math.round((configuredCount / configItems.length) * 100) : 0;
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden bg-zinc-50 font-sans">
-      <div className="z-10 flex shrink-0 flex-col gap-4 border-b border-zinc-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-6">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-xl font-extrabold text-zinc-950 sm:text-2xl">
-            <Settings className="size-6 text-emerald-600" />
-            System Status Dashboard
-          </h1>
-          <p className="mt-1 text-sm font-medium text-zinc-500">ตรวจสอบ Webhook, API keys, logs และงานสรุปรายวัน</p>
-        </div>
-        <button
+    <Box sx={{ display: "flex", flex: 1, minHeight: 0, flexDirection: "column", overflow: "hidden", bgcolor: "#f6f8fb" }}>
+      <Box
+        component="header"
+        sx={{
+          px: { xs: 2.5, sm: 4 },
+          py: 2.25,
+          borderBottom: "1px solid #e4e4e7",
+          bgcolor: "rgba(255,255,255,0.82)",
+          backdropFilter: "blur(14px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+          flexShrink: 0,
+        }}
+      >
+        <Box>
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Settings size={25} color="#059669" />
+            <Typography component="h1" sx={{ fontSize: { xs: 22, sm: 28 }, fontWeight: 600, color: "#09090b" }}>
+              System Status Dashboard
+            </Typography>
+          </Stack>
+          <Typography sx={{ mt: 0.75, fontSize: 13, fontWeight: 500, color: "#71717a" }}>ตรวจสอบ Webhook, API keys, logs และงานสรุปรายวัน</Typography>
+        </Box>
+        <Button
           onClick={loadData}
           disabled={isActionLoading || isLoading}
-          className="flex items-center gap-2 self-start rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm transition-all hover:bg-zinc-50 disabled:opacity-50 sm:self-auto"
+          variant="outlined"
+          startIcon={<RefreshCw size={17} className={isLoading ? "app-spin" : ""} />}
+          sx={{ borderRadius: 2.5, borderColor: "#e4e4e7", color: "#27272a", fontWeight: 600, bgcolor: "#fff", textTransform: "none" }}
         >
-          <RefreshCw className={`size-4 ${isLoading ? "animate-spin" : ""}`} />
           Refresh
-        </button>
-      </div>
+        </Button>
+      </Box>
 
-      <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-8">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <StatusCard
-            icon={Database}
-            title="MySQL Database"
-            ok={Boolean(statusData?.dbConnected)}
-            value={statusData?.dbConnected ? "Connected" : "Connection error"}
-            description={statusData?.dbConnected ? "Database is active" : statusData?.dbError || "ตรวจสอบ DATABASE_URL"}
-          />
-          <StatusCard
-            icon={Activity}
-            title="Webhook Health"
-            ok={webhookStats.total > 0 && webhookStats.failed === 0}
-            value={webhookStats.total > 0 ? `${webhookStats.total} requests` : "No requests"}
-            description={webhookStats.failed > 0 ? `พบข้อผิดพลาด ${webhookStats.failed} รายการล่าสุด` : "สถานะ webhook ปกติ"}
-          />
-          <StatusCard
-            icon={Sparkles}
-            title="Gemini AI Service"
-            ok={Boolean(config.geminiApiKey?.isConfigured)}
-            value={config.geminiApiKey?.isConfigured ? "Configured" : "Missing API key"}
-            description={config.geminiApiKey?.isConfigured ? "พร้อมใช้งาน" : "กรุณาตั้งค่า GEMINI_API_KEY"}
-          />
-        </div>
+      <Box sx={{ flex: 1, overflowY: "auto", p: { xs: 2.5, sm: 4 } }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
+            gap: 3,
+          }}
+        >
+          <StatusCard icon={Database} title="MySQL Database" ok={Boolean(statusData?.dbConnected)} value={statusData?.dbConnected ? "Connected" : "Connection error"} description={statusData?.dbConnected ? "Database is active" : statusData?.dbError || "ตรวจสอบ DATABASE_URL"} />
+          <StatusCard icon={Activity} title="Webhook Health" ok={webhookStats.total > 0 && webhookStats.failed === 0} value={webhookStats.total > 0 ? `${webhookStats.total} requests` : "No requests"} description={webhookStats.failed > 0 ? `พบข้อผิดพลาด ${webhookStats.failed} รายการล่าสุด` : "สถานะ webhook ปกติ"} />
+          <StatusCard icon={Sparkles} title="Gemini AI Service" ok={Boolean(config.geminiApiKey?.isConfigured)} value={config.geminiApiKey?.isConfigured ? "Configured" : "Missing API key"} description={config.geminiApiKey?.isConfigured ? "พร้อมใช้งาน" : "กรุณาตั้งค่า GEMINI_API_KEY"} />
+        </Box>
 
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-          <div className="flex gap-2 overflow-x-auto border-b border-zinc-200 bg-zinc-50/60 px-4 pt-3">
-            {tabItems.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-bold transition-all ${
-                    activeTab === tab.id
-                      ? "border-emerald-600 text-emerald-700"
-                      : "border-transparent text-zinc-400 hover:text-zinc-700"
-                  }`}
-                >
-                  <Icon className="size-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="p-4 sm:p-8">
+        <Paper elevation={0} sx={{ mt: 3, overflow: "hidden", border: "1px solid #e4e4e7", borderRadius: 4, bgcolor: "#fff" }}>
+          <Box sx={{ px: 2.5, pt: 2, borderBottom: "1px solid #e4e4e7", bgcolor: "#fafafa" }}>
+            <Tabs value={activeTab} onChange={(_, value: TabType) => setActiveTab(value)} variant="scrollable" scrollButtons="auto" sx={{ "& .MuiTabs-indicator": { bgcolor: "#059669", height: 3 }, "& .MuiTab-root": { fontWeight: 600, textTransform: "none", color: "#71717a" }, "& .Mui-selected": { color: "#047857 !important" } }}>
+              {tabItems.map((tab) => {
+                const Icon = tab.icon;
+                return <Tab key={tab.id} value={tab.id} icon={<Icon size={16} />} iconPosition="start" label={tab.label} />;
+              })}
+            </Tabs>
+          </Box>
+          <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
             {activeTab === "env" && (
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-                <form onSubmit={handleSaveSettings} className="space-y-6 lg:col-span-8">
-                  <div>
-                    <h3 className="flex items-center gap-2 text-xl font-bold text-zinc-900">
-                      <Lock className="size-5 text-emerald-600" />
-                      API Settings
-                    </h3>
-                    <p className="mt-1 text-sm font-medium text-zinc-500">อัปเดต secret ที่ใช้เชื่อมต่อ Gemini และ LINE</p>
-                  </div>
-
-                  <SecretInput
-                    label="GEMINI_API_KEY"
-                    value={geminiApiKeyInput}
-                    onChange={setGeminiApiKeyInput}
-                    configured={Boolean(config.geminiApiKey?.isConfigured)}
-                  />
-                  <SecretInput
-                    label="LINE_CHANNEL_SECRET"
-                    value={lineChannelSecretInput}
-                    onChange={setLineChannelSecretInput}
-                    configured={Boolean(config.lineChannelSecret?.isConfigured)}
-                  />
-                  <SecretInput
-                    label="LINE_CHANNEL_ACCESS_TOKEN"
-                    value={lineChannelAccessTokenInput}
-                    onChange={setLineChannelAccessTokenInput}
-                    configured={Boolean(config.lineChannelAccessToken?.isConfigured)}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={isSavingConfig || (!geminiApiKeyInput && !lineChannelSecretInput && !lineChannelAccessTokenInput)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-emerald-600/15 transition-all hover:bg-emerald-500 disabled:opacity-50"
-                  >
-                    {isSavingConfig ? <RefreshCw className="size-4 animate-spin" /> : <Play className="size-4" />}
-                    Save Config
-                  </button>
-                </form>
-
-                <div className="space-y-6 lg:col-span-4">
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">System Readiness</p>
-                    <div className="mt-3 flex items-end justify-between">
-                      <span className="text-2xl font-extrabold text-zinc-900">{progressPercent}%</span>
-                      <span className="text-sm font-bold text-emerald-700">
-                        {configuredCount}/{configItems.length} ready
-                      </span>
-                    </div>
-                    <div className="mt-3 h-3 overflow-hidden rounded-full bg-zinc-100 p-0.5">
-                      <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progressPercent}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Environment Status</p>
-                    <div className="mt-4 divide-y divide-zinc-100">
-                      {configItems.map((item) => (
-                        <div key={item.name} className="flex items-center justify-between gap-3 py-3">
-                          <span className="truncate font-mono text-xs font-bold text-zinc-800">{item.name}</span>
-                          <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${statusBadge(item.isConfigured)}`}>
-                            {item.isConfigured ? "พร้อม" : "ยังไม่ตั้งค่า"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 2fr) minmax(320px, 1fr)" },
+                  gap: 4,
+                  alignItems: "start",
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Paper component="form" onSubmit={handleSaveSettings} elevation={0} sx={{ p: 3, border: "1px solid #e4e4e7", borderRadius: 4 }}>
+                    <SectionTitle icon={Lock} title="API Settings" description="อัปเดต secret ที่ใช้เชื่อมต่อ Gemini และ LINE" />
+                    <Stack spacing={2.5} sx={{ mt: 3 }}>
+                      <SecretInput label="GEMINI_API_KEY" value={geminiApiKeyInput} onChange={setGeminiApiKeyInput} configured={Boolean(config.geminiApiKey?.isConfigured)} />
+                      <SecretInput label="LINE_CHANNEL_SECRET" value={lineChannelSecretInput} onChange={setLineChannelSecretInput} configured={Boolean(config.lineChannelSecret?.isConfigured)} />
+                      <SecretInput label="LINE_CHANNEL_ACCESS_TOKEN" value={lineChannelAccessTokenInput} onChange={setLineChannelAccessTokenInput} configured={Boolean(config.lineChannelAccessToken?.isConfigured)} />
+                      <Button type="submit" variant="contained" disabled={isSavingConfig || (!geminiApiKeyInput && !lineChannelSecretInput && !lineChannelAccessTokenInput)} startIcon={isSavingConfig ? <RefreshCw size={17} className="app-spin" /> : <Play size={17} />} sx={{ minHeight: 44, borderRadius: 2.5, bgcolor: "#059669", fontWeight: 600, textTransform: "none", "&:hover": { bgcolor: "#047857" } }}>
+                        Save Config
+                      </Button>
+                    </Stack>
+                  </Paper>
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Stack spacing={3}>
+                    <Paper elevation={0} sx={{ p: 3, border: "1px solid #e4e4e7", borderRadius: 4 }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, color: "#a1a1aa", textTransform: "uppercase" }}>System Readiness</Typography>
+                      <Stack direction="row" sx={{ mt: 1.5, alignItems: "baseline", justifyContent: "space-between" }}>
+                        <Typography sx={{ fontSize: 28, fontWeight: 600 }}>{progressPercent}%</Typography>
+                        <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#047857" }}>{configuredCount}/{configItems.length} ready</Typography>
+                      </Stack>
+                      <LinearProgress variant="determinate" value={progressPercent} sx={{ mt: 1.5, height: 6, borderRadius: 999, bgcolor: "#f4f4f5", "& .MuiLinearProgress-bar": { bgcolor: "#10b981", borderRadius: 999 } }} />
+                    </Paper>
+                    <Paper elevation={0} sx={{ p: 3, border: "1px solid #e4e4e7", borderRadius: 4 }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, color: "#a1a1aa", textTransform: "uppercase" }}>Environment Status</Typography>
+                      <Stack spacing={1.5} sx={{ mt: 2 }}>
+                        {configItems.map((item) => <ConfigRow key={item.name} item={item} />)}
+                      </Stack>
+                    </Paper>
+                  </Stack>
+                </Box>
+              </Box>
             )}
 
             {activeTab === "webhook" && (
-              <div className="space-y-8">
-                <div>
-                  <h3 className="flex items-center gap-2 text-xl font-bold text-zinc-900">
-                    <Activity className="size-5 text-emerald-600" />
-                    LINE Webhook
-                  </h3>
-                  <p className="mt-1 text-sm font-medium text-zinc-500">สถิติ request ล่าสุดจาก LINE webhook</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Stack spacing={3}>
+                <SectionTitle icon={Activity} title="LINE Webhook" description="สถิติ request ล่าสุดจาก LINE webhook" />
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" },
+                    gap: 2,
+                  }}
+                >
                   <Metric label="Total" value={webhookStats.total} />
-                  <Metric label="Success" value={webhookStats.success} className="text-emerald-600" />
-                  <Metric label="Failed" value={webhookStats.failed} className="text-rose-600" />
-                  <Metric label="Warning" value={webhookStats.warning} className="text-amber-500" />
-                </div>
-
+                  <Metric label="Success" value={webhookStats.success} color="#059669" />
+                  <Metric label="Failed" value={webhookStats.failed} color="#e11d48" />
+                  <Metric label="Warning" value={webhookStats.warning} color="#d97706" />
+                </Box>
                 <LogList logs={webhookLogs} emptyText="ยังไม่มี LINE webhook logs" onSelect={setSelectedLog} />
-              </div>
+              </Stack>
             )}
 
             {activeTab === "logs" && (
-              <div className="space-y-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 className="flex items-center gap-2 text-xl font-bold text-zinc-900">
-                      <Terminal className="size-5 text-emerald-600" />
-                      System Logs
-                    </h3>
-                    <p className="mt-1 text-sm font-medium text-zinc-500">ตรวจสอบเหตุการณ์ของระบบ, webhook และ cron</p>
-                  </div>
-                  <button
-                    onClick={() => setShowConfirmModal(true)}
-                    disabled={isActionLoading || logs.length === 0}
-                    className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-bold text-zinc-650 transition-all hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-                  >
-                    <Trash2 className="size-4" />
+              <Stack spacing={3}>
+                <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 2 }}>
+                  <SectionTitle icon={Terminal} title="System Logs" description="ตรวจสอบเหตุการณ์ของระบบ, webhook และ cron" />
+                  <Button onClick={() => setShowConfirmModal(true)} disabled={isActionLoading || logs.length === 0} variant="outlined" color="error" startIcon={<Trash2 size={17} />} sx={{ alignSelf: { xs: "flex-start", sm: "center" }, borderRadius: 2.5, fontWeight: 600, textTransform: "none" }}>
                     Clear Logs
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4">
+                  </Button>
+                </Stack>
+                <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap", rowGap: 2 }}>
                   <FilterSelect label="Type" value={typeFilter} onChange={setTypeFilter} options={["all", "webhook", "ai_summary", "cron", "system"]} />
                   <FilterSelect label="Level" value={levelFilter} onChange={setLevelFilter} options={["all", "info", "warning", "error"]} />
-                </div>
-
+                </Stack>
                 <LogList logs={filteredLogs} emptyText="ไม่พบ logs ตามตัวกรองที่เลือก" onSelect={setSelectedLog} />
-              </div>
+              </Stack>
             )}
 
             {activeTab === "cron" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="flex items-center gap-2 text-xl font-bold text-zinc-900">
-                    <Clock className="size-5 text-emerald-600" />
-                    Daily Summary Cron
-                  </h3>
-                  <p className="mt-1 text-sm font-medium text-zinc-500">รันงานสรุปบทสนทนาแบบ manual เมื่อต้องการทดสอบ</p>
-                </div>
-
-                <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                  <p className="font-mono text-sm font-bold text-zinc-800">GET /api/cron/daily-summary?secret=[CRON_SECRET]</p>
-                  <p className="mt-2 text-sm font-medium text-zinc-500">ใช้ endpoint นี้กับ Vercel Cron, cron-job.org หรือ GitHub Actions</p>
-                </div>
-
-                <button
-                  onClick={handleTriggerSummary}
-                  disabled={isActionLoading}
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-emerald-600/10 transition-all hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  {isActionLoading ? <RefreshCw className="size-4 animate-spin" /> : <Play className="size-4" />}
+              <Stack spacing={3}>
+                <SectionTitle icon={Clock} title="Daily Summary Cron" description="รันงานสรุปบทสนทนาแบบ manual เมื่อต้องการทดสอบ" />
+                <Alert severity="info" sx={{ borderRadius: 3 }}>
+                  <Typography sx={{ fontFamily: "var(--font-geist-mono)", fontSize: 13, fontWeight: 600 }}>GET /api/cron/daily-summary?secret=[CRON_SECRET]</Typography>
+                  <Typography sx={{ mt: 0.75, fontSize: 13, fontWeight: 500 }}>ใช้ endpoint นี้กับ Vercel Cron, cron-job.org หรือ GitHub Actions</Typography>
+                </Alert>
+                <Button onClick={handleTriggerSummary} disabled={isActionLoading} variant="contained" startIcon={isActionLoading ? <RefreshCw size={17} className="app-spin" /> : <Play size={17} />} sx={{ alignSelf: "flex-start", borderRadius: 2.5, bgcolor: "#059669", fontWeight: 600, textTransform: "none", "&:hover": { bgcolor: "#047857" } }}>
                   Run Daily Summary
-                </button>
-              </div>
+                </Button>
+              </Stack>
             )}
-          </div>
-        </div>
-      </div>
+          </Box>
+        </Paper>
+      </Box>
 
-      {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm">
-          <div className="flex h-full w-full max-w-xl flex-col overflow-hidden bg-white shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-zinc-50 px-6 py-5">
-              <div>
-                <h3 className="text-base font-bold text-zinc-800">Log Details</h3>
-                <p className="mt-1 text-xs text-zinc-400">ID: {selectedLog.id}</p>
-              </div>
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="flex size-8 items-center justify-center rounded-lg border border-zinc-200 text-xl font-bold text-zinc-550 hover:bg-zinc-100"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-5 overflow-y-auto p-6">
-              <div className="grid grid-cols-3 gap-4 border-b border-zinc-100 pb-4">
-                <Detail label="Type" value={selectedLog.type} />
-                <Detail label="Level" value={levelLabel(selectedLog.level)} />
-                <Detail label="Time" value={new Date(selectedLog.timestamp).toLocaleString("th-TH")} />
-              </div>
-              <Detail label="Message" value={selectedLog.message} boxed />
-              {selectedLog.details && (
-                <div>
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-zinc-400">Payload / Stack Trace</p>
-                  <pre className="min-h-[220px] overflow-x-auto whitespace-pre-wrap rounded-2xl border border-zinc-900 bg-zinc-950 p-5 font-mono text-xs leading-relaxed text-zinc-200">
-                    {selectedLog.details}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md space-y-6 rounded-3xl border border-zinc-200 bg-white p-8 shadow-2xl">
-            <div className="flex flex-col items-center text-center">
-              <div className="flex size-14 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-600">
-                <ShieldAlert className="size-8" />
-              </div>
-              <h3 className="mt-4 text-xl font-bold text-zinc-900">ล้าง System Logs?</h3>
-              <p className="mt-2 text-sm font-medium leading-relaxed text-zinc-500">ข้อมูล logs ทั้งหมดจะถูกลบ และไม่สามารถย้อนกลับได้</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="flex-1 rounded-xl bg-zinc-100 px-5 py-2.5 text-sm font-bold text-zinc-700 transition-all hover:bg-zinc-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={executeClearLogs}
-                className="flex-1 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-rose-600/10 transition-all hover:bg-rose-500"
-              >
-                Clear Logs
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <LogDrawer log={selectedLog} onClose={() => setSelectedLog(null)} />
+      <ConfirmDialog open={showConfirmModal} onClose={() => setShowConfirmModal(false)} onConfirm={executeClearLogs} />
+    </Box>
   );
 }
 
-function StatusCard({
-  icon: Icon,
-  title,
-  ok,
-  value,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  ok: boolean;
-  value: string;
-  description: string;
-}) {
+function StatusCard({ icon: Icon, title, ok, value, description }: { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; ok: boolean; value: string; description: string }) {
+  const color = ok ? "#059669" : "#e11d48";
   return (
-    <div className="flex items-center gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <div className={`flex size-14 shrink-0 items-center justify-center rounded-2xl border ${statusBadge(ok)}`}>
-        <Icon className="size-7" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">{title}</p>
-        <h3 className="mt-1 flex items-center gap-2 text-base font-extrabold text-zinc-800">
-          <span className={`size-2 rounded-full ${ok ? "bg-emerald-500" : "bg-rose-500"}`} />
-          <span className="truncate">{value}</span>
-        </h3>
-        <p className="mt-1 truncate text-xs font-medium text-zinc-500">{description}</p>
-      </div>
-    </div>
+    <Paper elevation={0} sx={{ height: "100%", p: 2, border: "1px solid #e4e4e7", borderRadius: 3, bgcolor: "#fff" }}>
+      <Stack direction="row" spacing={1.75} sx={{ alignItems: "center" }}>
+        <Avatar sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: `${color}12`, color, border: `1px solid ${color}18` }}>
+          <Icon size={18} color={color} />
+        </Avatar>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.8, color: "#a1a1aa", textTransform: "uppercase" }}>
+            {title}
+          </Typography>
+          <Stack direction="row" spacing={0.75} sx={{ mt: 0.5, alignItems: "center" }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: color }} />
+            <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 600, color: "#18181b" }}>
+              {value}
+            </Typography>
+          </Stack>
+          <Typography noWrap sx={{ mt: 0.25, fontSize: 11, fontWeight: 400, color: "#71717a" }}>
+            {description}
+          </Typography>
+        </Box>
+      </Stack>
+    </Paper>
   );
 }
 
-function SecretInput({
-  label,
-  value,
-  onChange,
-  configured,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  configured: boolean;
-}) {
+function SectionTitle({ icon: Icon, title, description }: { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; description: string }) {
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-bold text-zinc-700">{label}</label>
-      <input
-        type="password"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={configured ? "ตั้งค่าแล้ว - กรอกใหม่เมื่อต้องการเปลี่ยน" : `กรอก ${label}`}
-        className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800 shadow-sm transition-all placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/10"
-      />
-      <p className={`text-xs font-semibold ${configured ? "text-emerald-700" : "text-zinc-400"}`}>
-        {configured ? "พร้อมใช้งาน" : "ยังไม่ได้ตั้งค่า"}
-      </p>
-    </div>
+    <Box>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+        <Icon size={20} color="#059669" />
+        <Typography sx={{ fontSize: 18, fontWeight: 600 }}>{title}</Typography>
+      </Stack>
+      <Typography sx={{ mt: 0.75, fontSize: 13, fontWeight: 500, color: "#71717a" }}>{description}</Typography>
+    </Box>
   );
 }
 
-function Metric({ label, value, className = "text-zinc-800" }: { label: string; value: number; className?: string }) {
+function SecretInput({ label, value, onChange, configured }: { label: string; value: string; onChange: (value: string) => void; configured: boolean }) {
   return (
-    <div className="flex min-h-[105px] flex-col justify-between rounded-2xl border border-zinc-200 bg-zinc-50/50 p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{label}</p>
-      <p className={`mt-2 text-3xl font-extrabold ${className}`}>{value}</p>
-    </div>
+    <TextField
+      fullWidth
+      type="password"
+      label={label}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={configured ? "ตั้งค่าแล้ว - กรอกใหม่เมื่อต้องการเปลี่ยน" : `กรอก ${label}`}
+      helperText={configured ? "พร้อมใช้งาน" : "ยังไม่ได้ตั้งค่า"}
+      sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2.5 }, "& .MuiFormHelperText-root": { color: configured ? "#047857" : "#a1a1aa", fontWeight: 600 } }}
+    />
   );
 }
 
-function LogList({
-  logs,
-  emptyText,
-  onSelect,
-}: {
-  logs: LogEntry[];
-  emptyText: string;
-  onSelect: (log: LogEntry) => void;
-}) {
+function ConfigRow({ item }: { item: ConfigItem }) {
+  return (
+    <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 2, py: 1 }}>
+      <Typography noWrap sx={{ fontFamily: "var(--font-geist-mono)", fontSize: 12, fontWeight: 600 }}>{item.name}</Typography>
+      <Chip size="small" label={item.isConfigured ? "พร้อม" : "ยังไม่ตั้งค่า"} sx={{ bgcolor: item.isConfigured ? "#ecfdf5" : "#fff1f2", color: item.isConfigured ? "#047857" : "#e11d48", border: `1px solid ${item.isConfigured ? "#a7f3d0" : "#fecdd3"}`, fontWeight: 600, fontSize: 10 }} />
+    </Stack>
+  );
+}
+
+function Metric({ label, value, color = "#27272a" }: { label: string; value: number; color?: string }) {
+  return (
+    <Paper elevation={0} sx={{ minHeight: 100, p: 2.5, border: "1px solid #e4e4e7", borderRadius: 4, bgcolor: "#fafafa" }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase" }}>{label}</Typography>
+      <Typography sx={{ mt: 1.25, fontSize: 30, fontWeight: 600, color }}>{value}</Typography>
+    </Paper>
+  );
+}
+
+function LogList({ logs, emptyText, onSelect }: { logs: LogEntry[]; emptyText: string; onSelect: (log: LogEntry) => void }) {
   if (logs.length === 0) {
-    return <div className="rounded-2xl border border-dashed border-zinc-200 py-12 text-center text-sm font-semibold text-zinc-450">{emptyText}</div>;
+    return <Paper elevation={0} sx={{ py: 6, border: "1px dashed #d4d4d8", borderRadius: 4, textAlign: "center" }}><Typography sx={{ fontSize: 14, fontWeight: 500, color: "#a1a1aa" }}>{emptyText}</Typography></Paper>;
   }
-
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-      <div className="hidden items-center border-b border-zinc-200 bg-zinc-50/60 px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-zinc-400 md:flex">
-        <div className="w-48">Timestamp</div>
-        <div className="w-32">Type</div>
-        <div className="w-28">Level</div>
-        <div className="flex-1">Message</div>
-        <div className="w-24 text-right">Action</div>
-      </div>
-      <div className="max-h-[480px] divide-y divide-zinc-200 overflow-y-auto">
-        {logs.map((log) => (
-          <div key={log.id} className="flex flex-col gap-3 px-5 py-4 text-sm text-zinc-650 transition-colors hover:bg-zinc-50/50 md:flex-row md:items-center">
-            <div className="text-[12px] font-mono text-zinc-400 md:w-48">{new Date(log.timestamp).toLocaleString("th-TH")}</div>
-            <div className="font-semibold uppercase tracking-wider text-xs md:w-32">{log.type}</div>
-            <div className="font-bold text-xs uppercase tracking-wider md:w-28">
-              <span className={`rounded-full border px-2 py-0.5 ${levelBadge(log.level)}`}>{levelLabel(log.level)}</span>
-            </div>
-            <div className="flex-1 break-words font-semibold text-zinc-800 md:truncate md:pr-6">{log.message}</div>
-            <div className="shrink-0 md:w-24 md:text-right">
-              {log.details ? (
-                <button
-                  onClick={() => onSelect(log)}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-bold text-zinc-650 shadow-sm transition-all hover:border-emerald-500/20 hover:bg-white hover:text-emerald-600"
-                >
-                  รายละเอียด
-                </button>
-              ) : (
-                <span className="text-xs italic text-zinc-350">ไม่มีรายละเอียด</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #e4e4e7", borderRadius: 4, maxHeight: 520 }}>
+      <Table stickyHeader size="small">
+        <TableHead>
+          <TableRow>
+            {["Timestamp", "Type", "Level", "Message", "Action"].map((head) => <TableCell key={head} sx={{ bgcolor: "#fafafa", fontSize: 11, fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase" }}>{head}</TableCell>)}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {logs.map((log) => {
+            const color = levelColor(log.level);
+            return (
+              <TableRow key={log.id} hover>
+                <TableCell sx={{ fontFamily: "var(--font-geist-mono)", fontSize: 12, color: "#71717a", whiteSpace: "nowrap" }}>{new Date(log.timestamp).toLocaleString("th-TH")}</TableCell>
+                <TableCell sx={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase" }}>{log.type}</TableCell>
+                <TableCell><Chip size="small" label={levelLabel(log.level)} sx={{ bgcolor: color.bg, color: color.color, border: `1px solid ${color.border}`, fontWeight: 600, fontSize: 10 }} /></TableCell>
+                <TableCell sx={{ fontSize: 13, fontWeight: 500, maxWidth: 360 }}>{log.message}</TableCell>
+                <TableCell align="right">
+                  {log.details ? <Button size="small" variant="outlined" onClick={() => onSelect(log)} sx={{ borderRadius: 2, fontWeight: 600, textTransform: "none" }}>รายละเอียด</Button> : <Typography sx={{ fontSize: 12, color: "#a1a1aa", fontStyle: "italic" }}>ไม่มีรายละเอียด</Typography>}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-}) {
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
   return (
-    <label className="flex items-center gap-2.5">
-      <span className="text-sm font-bold text-zinc-400">{label}:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="cursor-pointer rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-sm text-zinc-700 shadow-sm focus:border-emerald-500/50 focus:outline-none"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    </label>
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#71717a" }}>{label}:</Typography>
+      <Select size="small" value={value} onChange={(event) => onChange(event.target.value)} sx={{ minWidth: 140, borderRadius: 2.5, fontWeight: 500 }}>
+        {options.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+      </Select>
+    </Stack>
+  );
+}
+
+function LogDrawer({ log, onClose }: { log: LogEntry | null; onClose: () => void }) {
+  return (
+    <Drawer anchor="right" open={Boolean(log)} onClose={onClose} sx={{ "& .MuiDrawer-paper": { width: { xs: "100%", sm: 560 } } }}>
+      {log && (
+        <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+          <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", p: 3, borderBottom: "1px solid #e4e4e7", bgcolor: "#fafafa" }}>
+            <Box><Typography sx={{ fontSize: 18, fontWeight: 600 }}>Log Details</Typography><Typography sx={{ mt: 0.5, fontSize: 12, color: "#a1a1aa" }}>ID: {log.id}</Typography></Box>
+            <IconButton onClick={onClose}>×</IconButton>
+          </Stack>
+          <Stack spacing={3} sx={{ p: 3, overflowY: "auto" }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+                gap: 2,
+              }}
+            >
+              <Detail label="Type" value={log.type} />
+              <Detail label="Level" value={levelLabel(log.level)} />
+              <Detail label="Time" value={new Date(log.timestamp).toLocaleString("th-TH")} />
+            </Box>
+            <Detail label="Message" value={log.message} boxed />
+            {log.details && (
+              <Box><Typography sx={{ mb: 1, fontSize: 11, fontWeight: 600, letterSpacing: 1, color: "#a1a1aa", textTransform: "uppercase" }}>Payload / Stack Trace</Typography><Box component="pre" sx={{ minHeight: 220, overflowX: "auto", whiteSpace: "pre-wrap", m: 0, p: 2.5, borderRadius: 3, bgcolor: "#09090b", color: "#e4e4e7", fontFamily: "var(--font-geist-mono)", fontSize: 12, lineHeight: 1.7 }}>{log.details}</Box></Box>
+            )}
+          </Stack>
+        </Box>
+      )}
+    </Drawer>
   );
 }
 
 function Detail({ label, value, boxed = false }: { label: string; value: React.ReactNode; boxed?: boolean }) {
   return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{label}</p>
-      <div className={`mt-1.5 text-sm font-semibold text-zinc-800 ${boxed ? "rounded-xl border border-zinc-200/50 bg-zinc-50 p-4 leading-relaxed" : ""}`}>
-        {value}
-      </div>
-    </div>
+    <Box sx={{ minWidth: 0, gridColumn: boxed ? "1 / -1" : undefined }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, color: "#a1a1aa", textTransform: "uppercase" }}>{label}</Typography>
+      <Typography component="div" sx={{ mt: 0.75, p: boxed ? 2 : 0, border: boxed ? "1px solid #e4e4e7" : 0, borderRadius: boxed ? 2.5 : 0, bgcolor: boxed ? "#fafafa" : "transparent", fontSize: 14, fontWeight: 500, color: "#27272a", lineHeight: 1.75 }}>{value}</Typography>
+    </Box>
+  );
+}
+
+function ConfirmDialog({ open, onClose, onConfirm }: { open: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
+      <DialogTitle sx={{ textAlign: "center", pt: 4 }}>
+        <Avatar sx={{ mx: "auto", mb: 2, width: 56, height: 56, borderRadius: 3, bgcolor: "#fff1f2", color: "#e11d48" }}><ShieldAlert size={26} /></Avatar>
+        <Typography sx={{ fontSize: 20, fontWeight: 600 }}>ล้าง System Logs?</Typography>
+      </DialogTitle>
+      <DialogContent><Typography sx={{ textAlign: "center", fontSize: 14, lineHeight: 1.8, color: "#71717a", fontWeight: 500 }}>ข้อมูล logs ทั้งหมดจะถูกลบ และไม่สามารถย้อนกลับได้</Typography></DialogContent>
+      <DialogActions sx={{ p: 3, pt: 1 }}>
+        <Button fullWidth onClick={onClose} variant="outlined" sx={{ borderRadius: 2.5, fontWeight: 600, textTransform: "none" }}>Cancel</Button>
+        <Button fullWidth onClick={onConfirm} variant="contained" color="error" sx={{ borderRadius: 2.5, fontWeight: 600, textTransform: "none" }}>Clear Logs</Button>
+      </DialogActions>
+    </Dialog>
   );
 }

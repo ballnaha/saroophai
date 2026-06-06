@@ -8,14 +8,29 @@ import { SystemStatusDashboard } from "@/components/SystemStatusDashboard";
 import { SignOutButton } from "@/components/SignOutButton";
 import { getLineGroups, toggleActionItemDb } from "@/app/actions/groups";
 import { summarizeChat } from "@/app/actions/summarize";
-import { RefreshCw, MessageSquare, Menu } from "lucide-react";
+import { MessageSquare, Menu } from "lucide-react";
 import { toast } from "sonner";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  CircularProgress,
+  Drawer,
+  IconButton,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 
 type DashboardAppProps = {
   userName?: string | null;
   userEmail?: string | null;
 };
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
   const [groups, setGroups] = useState<LineGroup[]>([]);
@@ -44,8 +59,8 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
         } else {
           setError(res.error || "เกิดข้อผิดพลาดในการโหลดข้อมูลกลุ่มแชท");
         }
-      } catch (err: any) {
-        setError(err.message || "เกิดข้อผิดพลาดที่ไม่คาดคิด");
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, "เกิดข้อผิดพลาดที่ไม่คาดคิด"));
       } finally {
         setIsLoading(false);
       }
@@ -93,7 +108,7 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
         );
         toast.error("ไม่สามารถบันทึกสถานะลงฐานข้อมูลได้: " + res.error);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setGroups((prevGroups) =>
         prevGroups.map((g) => {
           if (g.id !== groupId) return g;
@@ -106,7 +121,7 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
           };
         })
       );
-      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: " + err.message);
+      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: " + getErrorMessage(err, "ไม่ทราบสาเหตุ"));
     }
   };
 
@@ -126,13 +141,29 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
     );
 
     try {
-      await summarizeChat(groupId, groupToSync.rawChat);
+      const res = await summarizeChat(groupId, groupToSync.rawChat);
+      if (res && !res.success && res.error === "ไม่มีข้อความใหม่ที่ต้องการสรุปข้อมูลในขณะนี้") {
+        toast.info("ไม่มีข้อความใหม่", {
+          description: "ระบบได้ทำการสรุปข้อความชุดปัจจุบันเสร็จสิ้นแล้ว",
+        });
+      } else if (res && !res.success) {
+        toast.error("ซิงค์ข้อมูลล้มเหลว", {
+          description: res.error,
+        });
+      } else if (res && res.success) {
+        toast.success("ซิงค์ข้อมูลสำเร็จ", {
+          description: "บทสรุปและรายการงานได้รับการอัปเดตเรียบร้อยแล้ว",
+        });
+      }
       const fetchRes = await getLineGroups();
       if (fetchRes.success && fetchRes.data) {
         setGroups(fetchRes.data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Sync error:", err);
+      toast.error("เกิดข้อผิดพลาดในการซิงค์ข้อมูล", {
+        description: getErrorMessage(err, "ไม่ทราบสาเหตุ"),
+      });
       const fetchRes = await getLineGroups();
       if (fetchRes.success && fetchRes.data) {
         setGroups(fetchRes.data);
@@ -142,48 +173,61 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen w-full items-center justify-center bg-zinc-50 font-sans text-zinc-500">
-        <RefreshCw className="size-10 text-emerald-600 animate-spin mb-4" />
-        <p className="text-sm font-semibold">กำลังเชื่อมต่อฐานข้อมูล MySQL...</p>
-      </div>
+      <Box sx={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", bgcolor: "#f6f8fb" }}>
+        <Stack spacing={2} sx={{ alignItems: "center", color: "#52525b" }}>
+          <CircularProgress size={42} thickness={4} sx={{ color: "#059669" }} />
+          <Typography sx={{ fontSize: 14, fontWeight: 800 }}>กำลังเชื่อมต่อฐานข้อมูล</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col h-screen w-full items-center justify-center bg-zinc-50 font-sans p-6 text-center max-w-md mx-auto">
-        <div className="size-16 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 mb-4">
-          <MessageSquare className="size-8" />
-        </div>
-        <h2 className="text-lg font-bold text-zinc-800">เชื่อมต่อฐานข้อมูลล้มเหลว</h2>
-        <p className="text-sm text-zinc-500 mt-2 leading-6">{error}</p>
-        <div className="mt-6 p-4 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-500 text-left font-mono shadow-sm w-full">
-          <p className="font-bold mb-1 text-zinc-700">คำแนะนำ:</p>
-          <ul className="list-decimal list-inside space-y-1 text-[11px]">
-            <li>ตรวจสอบว่า MySQL Server รันอยู่จริง</li>
-            <li>ตรวจสอบตัวแปร <code className="bg-zinc-100 px-1 py-0.5 rounded">DATABASE_URL</code> ในไฟล์ <code className="bg-zinc-100 px-1 py-0.5 rounded">.env</code></li>
-            <li>รันคำสั่ง <code className="bg-zinc-100 px-1 py-0.5 rounded">npx prisma db push</code> เพื่อจำลองตาราง</li>
-          </ul>
-        </div>
-        <button
+      <Box sx={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", bgcolor: "#f6f8fb", p: 3 }}>
+        <Paper elevation={0} sx={{ width: "100%", maxWidth: 480, p: 4, border: "1px solid #e4e4e7", borderRadius: 4, textAlign: "center" }}>
+          <Avatar sx={{ width: 64, height: 64, mx: "auto", mb: 2, bgcolor: "#fff1f2", color: "#e11d48", border: "1px solid #ffe4e6" }}>
+            <MessageSquare size={32} />
+          </Avatar>
+          <Typography component="h2" sx={{ fontSize: 20, fontWeight: 950, color: "#27272a" }}>
+            เชื่อมต่อฐานข้อมูลล้มเหลว
+          </Typography>
+          <Typography sx={{ mt: 1, fontSize: 14, lineHeight: 1.8, color: "#71717a", fontWeight: 600 }}>{error}</Typography>
+          <Alert severity="info" sx={{ mt: 3, textAlign: "left", borderRadius: 3, bgcolor: "#fff", border: "1px solid #e4e4e7" }}>
+            <Typography sx={{ mb: 0.5, fontSize: 13, fontWeight: 900 }}>คำแนะนำ:</Typography>
+            <Box component="ol" sx={{ m: 0, pl: 2.5, fontSize: 12, lineHeight: 1.8 }}>
+              <li>ตรวจสอบว่า MySQL Server รันอยู่จริง</li>
+              <li>ตรวจสอบตัวแปร DATABASE_URL ในไฟล์ .env</li>
+              <li>รันคำสั่ง npx prisma db push เพื่อจำลองตาราง</li>
+            </Box>
+          </Alert>
+          <Button
+            variant="contained"
           onClick={() => window.location.reload()}
-          className="mt-6 px-5 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-600/10"
+            sx={{ mt: 3, borderRadius: 3, bgcolor: "#059669", fontWeight: 900, boxShadow: "0 12px 24px rgba(5,150,105,0.16)", "&:hover": { bgcolor: "#047857" } }}
         >
           ลองใหม่อีกครั้ง
-        </button>
-      </div>
+          </Button>
+        </Paper>
+      </Box>
     );
   }
 
   return (
-    <div className="flex h-screen bg-white text-zinc-800 font-sans overflow-hidden">
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden", bgcolor: "#fff", color: "#27272a" }}>
       {/* Mobile Drawer Navigation Sidebar */}
-      <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
-        <SheetContent side="left" className="p-0 border-none w-80 bg-[#0a0b0d]">
-          <div className="sr-only">
-            <h2>Navigation Drawer</h2>
-            <p>Select a LINE group or configure status.</p>
-          </div>
+      <Drawer
+        open={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+        sx={{
+          display: { xs: "block", lg: "none" },
+          "& .MuiDrawer-paper": { width: 280, border: 0, bgcolor: "#0a0b0d" },
+        }}
+      >
+        <Box sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+          <h2>Navigation Drawer</h2>
+          <p>Select a LINE group or configure status.</p>
+        </Box>
           <LineGroupSidebar
             groups={groups}
             selectedGroupId={selectedGroupId}
@@ -191,11 +235,10 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
           />
-        </SheetContent>
-      </Sheet>
+      </Drawer>
 
       {/* Desktop Sidebar (hidden on mobile) */}
-      <div className="hidden lg:flex shrink-0 h-full">
+      <Box sx={{ display: { xs: "none", lg: "flex" }, flexShrink: 0, height: "100%" }}>
         <LineGroupSidebar
           groups={groups}
           selectedGroupId={selectedGroupId}
@@ -203,52 +246,66 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
         />
-      </div>
+      </Box>
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-50">
-        <header className="h-16 shrink-0 border-b border-zinc-200/80 bg-white/70 backdrop-blur-md px-6 flex items-center justify-between z-30">
-          <div className="flex items-center gap-3 min-w-0">
+      <Box component="main" sx={{ display: "flex", flex: 1, minWidth: 0, height: "100%", flexDirection: "column", overflow: "hidden", bgcolor: "#f6f8fb" }}>
+        <Box
+          component="header"
+          sx={{
+            height: 64,
+            flexShrink: 0,
+            borderBottom: "1px solid rgba(228,228,231,0.85)",
+            bgcolor: "rgba(255,255,255,0.78)",
+            backdropFilter: "blur(14px)",
+            px: { xs: 2, sm: 3 },
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            zIndex: 30,
+          }}
+        >
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
             {/* Hamburger Button for Mobile */}
-            <button
+            <IconButton
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-2 rounded-xl text-zinc-500 hover:bg-zinc-150 hover:text-zinc-800 active:scale-95 transition-all cursor-pointer"
               aria-label="Toggle sidebar"
+              sx={{ display: { xs: "inline-flex", lg: "none" }, ml: -1, color: "#71717a", borderRadius: 3, "&:hover": { bgcolor: "#f4f4f5", color: "#27272a" } }}
             >
-              <Menu className="size-5" />
-            </button>
+              <Menu size={21} />
+            </IconButton>
 
             {/* Breadcrumb path */}
-            <div className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase tracking-widest min-w-0 select-none">
-              <span>SaroopHai Portal</span>
-              <span className="text-zinc-300">/</span>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0, color: "#a1a1aa", userSelect: "none" }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.8, textTransform: "uppercase" }}>SaroopHai Portal</Typography>
+              <Typography sx={{ color: "#e4e4e7" }}>/</Typography>
               {selectedGroupId === "system_status" ? (
-                <span className="text-zinc-650 font-extrabold truncate">สถานะและบันทึกระบบ</span>
+                <Typography noWrap sx={{ fontSize: 12, fontWeight: 600, color: "#18181b" }}>สถานะและบันทึกระบบ</Typography>
               ) : activeGroup ? (
-                <span className="text-zinc-700 font-extrabold truncate">{activeGroup.name}</span>
+                <Typography noWrap sx={{ fontSize: 12, fontWeight: 600, color: "#18181b" }}>{activeGroup.name}</Typography>
               ) : (
-                <span className="text-zinc-600 font-extrabold truncate">แดชบอร์ด</span>
+                <Typography noWrap sx={{ fontSize: 12, fontWeight: 600, color: "#18181b" }}>แดชบอร์ด</Typography>
               )}
-            </div>
-          </div>
+            </Stack>
+          </Stack>
 
           {/* User Profile Info & Sign Out */}
-          <div className="flex items-center gap-3.5">
-            <div className="flex items-center gap-2.5 bg-zinc-50 border border-zinc-150 px-3 py-1.5 rounded-xl select-none">
-              <div className="size-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-extrabold text-xs shadow-inner">
+          <Stack direction="row" spacing={2.5} sx={{ alignItems: "center" }}>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", userSelect: "none" }}>
+              <Avatar sx={{ width: 28, height: 28, borderRadius: 2, bgcolor: "#059669", color: "#fff", fontSize: 12, fontWeight: 600 }}>
                 {userName ? userName[0].toUpperCase() : "U"}
-              </div>
-              <div className="hidden md:block text-left">
-                <p className="text-xs font-bold text-zinc-800 leading-none truncate max-w-[120px]">
+              </Avatar>
+              <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0, textAlign: "left" }}>
+                <Typography noWrap sx={{ maxWidth: 130, fontSize: 12.5, fontWeight: 600, color: "#18181b", lineHeight: 1.2 }}>
                   {userName || "Google User"}
-                </p>
-                <p className="text-[10px] text-zinc-455 font-semibold leading-none mt-1 truncate max-w-[120px]">
+                </Typography>
+                <Typography noWrap sx={{ maxWidth: 130, mt: 0.25, fontSize: 10, fontWeight: 400, color: "#71717a", lineHeight: 1 }}>
                   {userEmail || "user@email.com"}
-                </p>
-              </div>
-            </div>
+                </Typography>
+              </Box>
+            </Stack>
             <SignOutButton />
-          </div>
-        </header>
+          </Stack>
+        </Box>
 
         {selectedGroupId === "system_status" ? (
           <SystemStatusDashboard />
@@ -259,11 +316,11 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
             onToggleActionItem={handleToggleActionItem}
           />
         ) : (
-          <div className="flex flex-col flex-1 items-center justify-center text-zinc-400">
+          <Box sx={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", color: "#a1a1aa", fontWeight: 800 }}>
             ไม่พบข้อมูลกลุ่มแชทในระบบ
-          </div>
+          </Box>
         )}
-      </main>
-    </div>
+      </Box>
+    </Box>
   );
 }

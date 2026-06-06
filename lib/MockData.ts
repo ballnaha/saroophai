@@ -53,7 +53,7 @@ export const mockLineGroups: LineGroup[] = [
   {
     id: 'grp_01',
     name: 'PSC Development Team',
-    avatarColor: 'bg-emerald-500 text-white',
+    avatarColor: '#10b981',
     unreadCount: 4,
     lastActive: '15:42',
     membersCount: 12,
@@ -67,16 +67,16 @@ export const mockLineGroups: LineGroup[] = [
       sentimentScore: 82,
     },
     contributors: [
-      { name: 'Thanya (Dev)', messagesCount: 52, avatarColor: 'bg-indigo-500' },
-      { name: 'Kittisak (QA)', messagesCount: 38, avatarColor: 'bg-amber-500' },
-      { name: 'Nattapon (PM)', messagesCount: 31, avatarColor: 'bg-rose-500' },
-      { name: 'Somsak (UX)', messagesCount: 22, avatarColor: 'bg-teal-500' },
+      { name: 'Thanya (Dev)', messagesCount: 52, avatarColor: '#6366f1' },
+      { name: 'Kittisak (QA)', messagesCount: 38, avatarColor: '#f59e0b' },
+      { name: 'Nattapon (PM)', messagesCount: 31, avatarColor: '#f43f5e' },
+      { name: 'Somsak (UX)', messagesCount: 22, avatarColor: '#14b8a6' },
     ],
     summary: {
       overall: 'การพูดคุยในวันนี้เน้นไปที่การเตรียม Deploy ระบบขึ้น Staging Environment สำหรับโปรเจกต์แผนงานใหม่ รวมถึงการแก้ไข UI บั๊กในหน้า Dashboard และการเตรียมข้อมูลนำเสนอผู้บริหารวันจันทร์หน้า',
-      morning: 'ทีมตกลงแก้ไขปัญหา CSS Layout ของหน้า Dashboard ที่แสดงผลเพี้ยนในขนาดหน้าจอ iPad Pro โดย Thanya รับไปดำเนินการและอัปเดตโค้ดเข้า GitHub ในช่วงสาย',
-      afternoon: 'Kittisak (QA) รายงานพบบั๊กเพิ่มเติมในระบบกรองข้อมูลวันที่ในหน้าสร้างแผน ซึ่งทีมตกลงว่าจะแก้ไขหลังจากการ Deploy รอบแรกผ่านไปแล้ว เพื่อไม่ให้กระทบกำหนดการ',
-      evening: 'Nattapon (PM) สรุปกำหนดการนัดซ้อมนำเสนอเดโมงานจริงวันพรุ่งนี้เวลา 10:00 น. และย้ำเตือนให้ทุกคนตรวจสอบความเรียบร้อยของหน้าเว็บสำหรับเตรียมแสดงผลจริง',
+      morning: '- ทีมตกลงแก้ไขปัญหา CSS Layout ของหน้า Dashboard ที่แสดงผลเพี้ยนในขนาดหน้าจอ iPad Pro\n- Thanya รับไปดำเนินการและอัปเดตโค้ดเข้า GitHub ในช่วงสาย',
+      afternoon: '- Kittisak (QA) รายงานพบบั๊กเพิ่มเติมในระบบกรองข้อมูลวันที่ในหน้าสร้างแผน\n- ทีมตกลงว่าจะแก้ไขหลังจากการ Deploy รอบแรกผ่านไปแล้ว เพื่อไม่ให้กระทบกำหนดการ',
+      evening: '- Nattapon (PM) สรุปกำหนดการนัดซ้อมนำเสนอเดโมงานจริงวันพรุ่งนี้เวลา 10:00 น.\n- ย้ำเตือนให้ทุกคนตรวจสอบความเรียบร้อยของหน้าเว็บสำหรับเตรียมแสดงผลจริง',
     },
     actionItems: [
       { id: 'act_01', task: 'แก้ไข CSS Layout หน้า Dashboard สำหรับ iPad Pro และดันโค้ดเข้า git', assignee: 'Thanya (Dev)', status: 'completed', dueDate: 'วันนี้, 12:00' },
@@ -132,7 +132,7 @@ export const mockLineGroups: LineGroup[] = [
   {
     id: 'grp_02',
     name: 'Sales & Marketing Sync',
-    avatarColor: 'bg-rose-500 text-white',
+    avatarColor: '#f43f5e',
     unreadCount: 0,
     lastActive: '12:15',
     membersCount: 8,
@@ -146,16 +146,16 @@ export const mockLineGroups: LineGroup[] = [
       sentimentScore: 61,
     },
     contributors: [
-      { name: 'Kanya (Sales)', messagesCount: 35, avatarColor: 'bg-purple-500' },
-      { name: 'Vichai (Mkt)', messagesCount: 30, avatarColor: 'bg-emerald-500' },
-      { name: 'Prasert (VP)', messagesCount: 20, avatarColor: 'bg-amber-500' },
-      { name: 'Sarah (Admin)', messagesCount: 10, avatarColor: 'bg-sky-500' },
+      { name: 'Kanya (Sales)', messagesCount: 35, avatarColor: '#a855f7' },
+      { name: 'Vichai (Mkt)', messagesCount: 30, avatarColor: '#10b981' },
+      { name: 'Prasert (VP)', messagesCount: 20, avatarColor: '#f59e0b' },
+      { name: 'Sarah (Admin)', messagesCount: 10, avatarColor: '#0ea5e9' },
     ],
     summary: {
       overall: 'การคุยเน้นเรื่องยอดขายประจำเดือนพฤษภาคมที่ต่ำกว่าเป้าเล็กน้อย และการจัดทำโปรโมชัน Mid-Year Sale ที่ต้องรีบสรุปเพื่อเตรียมทำแบนเนอร์โฆษณาในสัปดาห์หน้า',
-      morning: 'Kanya เสนอรายงานยอดขายและคาดการณ์ยอดสั่งซื้อของไตรมาสที่ 2 โดยมีประเด็นเรื่องลูกค้ารายใหญ่ในเขตอุตสาหกรรมชะลอการสั่งซื้อ',
-      afternoon: 'ทีมตกลงรายละเอียดกิจกรรมโปรโมชัน ลด 15% สำหรับสินค้ากลุ่มไอที และแถมของพรีเมียมเมื่อซื้อครบ 5,000 บาท โดยจะจัดแคมเปญ 15-25 มิถุนายนนี้',
-      evening: 'ไม่มีการคุยที่มีนัยสำคัญ มีเพียงการส่งข้อมูลไฟล์ตัวอย่างโบรชัวร์โฆษณาจากฝ่ายกราฟิกมาเพื่อให้พิจารณารูปแบบเบื้องต้น',
+      morning: '- Kanya เสนอรายงานยอดขายและคาดการณ์ยอดสั่งซื้อของไตรมาสที่ 2\n- พบประเด็นลูกค้ารายใหญ่ชะลอคำสั่งซื้อเพื่อทบทวนงบประมาณ',
+      afternoon: '- ทีมตกลงจัดโปรโมชัน Mid-Year Sale (15-25 มิถุนายนนี้)\n- ลดสูงสุด 15% กลุ่มสินค้าไอที และแถมของขวัญเมื่อช้อปครบ 5,000 บาท',
+      evening: '- ฝ่ายกราฟิกดีไซเนอร์ส่งแบนเนอร์หลัก 3 ขนาดสำหรับโปรโมตใน Social Media\n- Kanya เตรียมประสานงานตรวจสอบราคาต้นทุนสินค้ากับฝ่ายจัดซื้อต่อในวันพรุ่งนี้',
     },
     actionItems: [
       { id: 'act_05', task: 'สรุปเงื่อนไขและสินค้าเข้าร่วม Mid-Year Sale ส่งให้ฝ่ายจัดซื้อเคาะราคาต้นทุน', assignee: 'Kanya (Sales)', status: 'pending', dueDate: '08 มิ.ย. 2569' },
@@ -196,7 +196,7 @@ export const mockLineGroups: LineGroup[] = [
   {
     id: 'grp_03',
     name: 'ประสานงานลูกค้า (SCG Project)',
-    avatarColor: 'bg-blue-500 text-white',
+    avatarColor: '#3b82f6',
     unreadCount: 15,
     lastActive: '15:52',
     membersCount: 6,
@@ -210,9 +210,9 @@ export const mockLineGroups: LineGroup[] = [
       sentimentScore: 50,
     },
     contributors: [
-      { name: 'Client Contact', messagesCount: 25, avatarColor: 'bg-yellow-600' },
-      { name: 'Thanya (Dev)', messagesCount: 12, avatarColor: 'bg-indigo-500' },
-      { name: 'Nattapon (PM)', messagesCount: 5, avatarColor: 'bg-rose-500' },
+      { name: 'Client Contact', messagesCount: 25, avatarColor: '#ca8a04' },
+      { name: 'Thanya (Dev)', messagesCount: 12, avatarColor: '#6366f1' },
+      { name: 'Nattapon (PM)', messagesCount: 5, avatarColor: '#f43f5e' },
     ],
     summary: {
       overall: 'ยังไม่ได้ทำการวิเคราะห์สรุปข้อมูลล่าสุดของวันนี้ เนื่องจากระบบยังไม่ได้เชื่อมต่อดึงข้อมูล กรุณากดปุ่ม Sync ข้อมูลด้านบนเพื่อเริ่มต้นสรุปรายงาน',
