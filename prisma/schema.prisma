@@ -1,0 +1,71 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model LineGroup {
+  id                      String        @id
+  name                    String
+  avatarColor             String
+  unreadCount             Int           @default(0)
+  lastActive              String
+  membersCount            Int
+  syncStatus              String        @default("idle")
+  lastSynced              String
+  rawChat                 String        @db.LongText
+  syncError               String?       @db.Text
+  
+  // Stats
+  messagesToday           Int           @default(0)
+  messagesChange          Int           @default(0)
+  activeContributorsCount Int           @default(0)
+  sentiment               String        @default("Neutral")
+  sentimentScore          Int           @default(50)
+  
+  // Summary
+  summaryOverall          String?       @db.Text
+  summaryMorning          String?       @db.Text
+  summaryAfternoon        String?       @db.Text
+  summaryEvening          String?       @db.Text
+
+  // JSON fields
+  hourlyActivity          Json?         // Stores [number, number, ...] array
+
+  // Relations
+  contributors            Contributor[]
+  actionItems             ActionItem[]
+  topics                  Topic[]
+}
+
+model Contributor {
+  id            Int       @id @default(autoincrement())
+  groupId       String
+  group         LineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name          String
+  messagesCount Int
+  avatarColor   String
+}
+
+model ActionItem {
+  id        String    @id
+  groupId   String
+  group     LineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  task      String    @db.Text
+  assignee  String
+  status    String    @default("pending") // "pending" | "completed"
+  dueDate   String?
+}
+
+model Topic {
+  id        Int       @id @default(autoincrement())
+  groupId   String
+  group     LineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name      String
+  category  String    // "urgent" | "work" | "finance" | "social" | "general"
+  relevance Int
+  keyPoints Json      // Stores array of strings ["key point 1", "key point 2"]
+}
