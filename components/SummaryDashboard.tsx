@@ -96,6 +96,40 @@ export function SummaryDashboard({
 }: SummaryDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>("summary");
   const [selectedContributor, setSelectedContributor] = useState<string | null>(null);
+  const [seenTopicsCounts, setSeenTopicsCounts] = useState<Record<string, number>>({});
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Load from localStorage on client-side mount
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem("seen_topics_counts");
+      if (saved) {
+        setSeenTopicsCounts(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error("Failed to load seen topics counts:", e);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Mark topics as seen when viewing the topics tab
+  React.useEffect(() => {
+    if (activeTab === "topics") {
+      setSeenTopicsCounts((prev) => {
+        if (prev[group.id] === group.topics.length) return prev;
+        const next = {
+          ...prev,
+          [group.id]: group.topics.length,
+        };
+        try {
+          localStorage.setItem("seen_topics_counts", JSON.stringify(next));
+        } catch (e) {
+          console.error("Failed to save seen topics counts:", e);
+        }
+        return next;
+      });
+    }
+  }, [activeTab, group.id, group.topics.length]);
 
   const isSyncing = group.syncStatus === "syncing";
   const isIdle = group.syncStatus === "idle";
@@ -106,6 +140,9 @@ export function SummaryDashboard({
   const completionPercent = totalActionsCount > 0 ? Math.round((completedActionsCount / totalActionsCount) * 100) : 0;
   const maxActivity = Math.max(...group.hourlyActivity, 1);
   const sentiment = sentimentMeta(group.stats.sentiment);
+
+  const seenCount = seenTopicsCounts[group.id] ?? 0;
+  const unreadTopicsCount = isHydrated ? Math.max(0, group.topics.length - seenCount) : 0;
 
   return (
     <Box sx={{ display: "flex", flex: 1, minHeight: 0, flexDirection: "column", overflow: "hidden", bgcolor: "#f6f8fb", color: "#27272a" }}>
@@ -299,7 +336,7 @@ export function SummaryDashboard({
                         value="actions"
                         label={<DashboardTabLabel icon={ListTodo} label="งานที่ต้องทำ" count={pendingActionsCount} active={activeTab === "actions"} />}
                       />
-                      <Tab value="topics" label={<DashboardTabLabel icon={Hash} label="ประเด็นสำคัญ" count={group.topics.length} active={activeTab === "topics"} />} />
+                      <Tab value="topics" label={<DashboardTabLabel icon={Hash} label="ประเด็นสำคัญ" count={unreadTopicsCount} active={activeTab === "topics"} />} />
                     </Tabs>
                   </Box>
                   <Box sx={{ p: { xs: 2.5, sm: 4 }, minHeight: 420 }}>
@@ -621,7 +658,7 @@ function SummaryTab({ group }: { group: LineGroup }) {
       </Paper>
 
       {/* Modern Connected Timeline List */}
-      <Stack spacing={0} sx={{ mt: 1 }}>
+      <Stack spacing={1.5} sx={{ mt: 2 }}>
         <TimelineItem
           icon={Coffee}
           color="#d97706"
@@ -748,7 +785,7 @@ function TimelineItem({
   return (
     <Stack direction="row" spacing={3} sx={{ position: "relative" }}>
       {/* Left Column (Timeline graphics) */}
-      <Stack sx={{ alignItems: "center", width: 24, flexShrink: 0 }}>
+      <Stack sx={{ alignItems: "center", width: 24, flexShrink: 0, position: "relative" }}>
         {/* Bullet circle */}
         <Box
           sx={{
@@ -766,10 +803,13 @@ function TimelineItem({
         {!last && (
           <Box
             sx={{
+              position: "absolute",
               width: 2,
-              flex: 1,
+              top: 32,
+              bottom: -40, // bridges the Stack spacing={5} gap (40px)
+              left: 11,
               bgcolor: "#e4e4e7",
-              my: 0.5,
+              zIndex: 1,
             }}
           />
         )}
@@ -785,7 +825,6 @@ function TimelineItem({
           borderRadius: 3,
           bgcolor: "#fff",
           transition: "all 220ms cubic-bezier(0.4, 0, 0.2, 1)",
-          mb: last ? 0 : 3.5,
           "&:hover": {
             borderColor: color,
             boxShadow: `0 12px 28px -8px ${color}16`,
