@@ -114,3 +114,20 @@ model Topic {
   relevance Int
   keyPoints Json      // Stores array of strings ["key point 1", "key point 2"]
 }
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  type      String   // "webhook" | "ai_summary" | "cron" | "system"
+  level     String   // "info" | "warning" | "error"
+  message   String   @db.Text
+  details   String?  @db.LongText
+  timestamp DateTime @default(now())
+}
+
+model SystemSetting {
+  id                      Int      @id @default(1)
+  geminiApiKeyEnc         String?  @db.Text
+  lineChannelSecretEnc    String?  @db.Text
+  lineAccessTokenEnc      String?  @db.Text
+  updatedAt               DateTime @updatedAt
+}

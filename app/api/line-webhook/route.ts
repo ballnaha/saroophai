@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import prisma from "@/lib/prisma";
+import { logToSystem } from "@/lib/logger";
+import { getLineChannelSecret, getLineAccessToken } from "@/lib/settings";
 
 // Deterministic colors for new groups
 const GROUP_COLORS = [
@@ -132,12 +134,18 @@ export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
     const signature = request.headers.get("x-line-signature");
-    const channelSecret = process.env.LINE_CHANNEL_SECRET;
+    const channelSecret = await getLineChannelSecret();
 
     // 1. Verify Signature
     if (isConfiguredSecret(channelSecret)) {
       if (!signature) {
         console.error("Missing x-line-signature header");
+        await logToSystem(
+          "webhook",
+          "error",
+          "LINE webhook signature verification failed: Missing signature header",
+          "No x-line-signature header was provided in request headers."
+        );
         return new NextResponse("Missing signature", { status: 400 });
       }
 
@@ -145,23 +153,42 @@ export async function POST(request: NextRequest) {
         console.error(
           "LINE webhook signature validation failed. Check that LINE_CHANNEL_SECRET matches the channel secret in the LINE Developers console, then restart the Next.js server."
         );
+        await logToSystem(
+          "webhook",
+          "error",
+          "LINE webhook signature verification failed: Signature mismatch",
+          `Check that LINE_CHANNEL_SECRET environment variable is correct.\nSignature provided: ${signature}`
+        );
         return new NextResponse("Invalid signature", { status: 401 });
       }
     } else {
       console.warn("LINE_CHANNEL_SECRET is not configured or using placeholder. Signature verification bypassed.");
+      await logToSystem(
+        "webhook",
+        "warning",
+        "LINE Webhook signature verification bypassed",
+        "LINE_CHANNEL_SECRET is not configured or using placeholder. Allowing request without verification."
+      );
     }
 
     // 2. Parse Events
     let payload;
     try {
       payload = JSON.parse(rawBody);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to parse body JSON:", err);
+      await logToSystem(
+        "webhook",
+        "error",
+        "Failed to parse body JSON in Webhook",
+        err?.message || String(err)
+      );
       return new NextResponse("Invalid JSON", { status: 400 });
     }
 
     const events = payload.events || [];
-    const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
+    const accessToken = await getLineAccessToken();
+    let processedCount = 0;
 
     for (const event of events) {
       // We only process message events from groups
@@ -313,7 +340,17 @@ export async function POST(request: NextRequest) {
             }
           });
         }
+        processedCount++;
       }
+    }
+
+    if (events.length > 0) {
+      await logToSystem(
+        "webhook",
+        "info",
+        `Processed ${events.length} LINE webhook events successfully`,
+        `Processed events count: ${processedCount}. Raw payload size: ${rawBody.length} bytes.`
+      );
     }
 
     return new NextResponse("OK", { status: 200 });
@@ -321,6 +358,14 @@ export async function POST(request: NextRequest) {
     console.error("Webhook processing error:", error);
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
+    const stack = error instanceof Error ? error.stack : undefined;
+
+    await logToSystem(
+      "webhook",
+      "error",
+      `Webhook processing exception: ${message}`,
+      stack
+    );
 
     return new NextResponse(
       JSON.stringify({ error: message }),

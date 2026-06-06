@@ -4,6 +4,8 @@ import { GoogleGenAI } from "@google/genai";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
+import { logToSystem } from "@/lib/logger";
+import { getGeminiApiKey } from "@/lib/settings";
 
 interface SummarizeResult {
   success: boolean;
@@ -21,7 +23,11 @@ export async function summarizeChat(groupId: string, rawChat: string): Promise<S
     };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  return summarizeChatCore(groupId, rawChat);
+}
+
+export async function summarizeChatCore(groupId: string, rawChat: string): Promise<SummarizeResult> {
+  const apiKey = await getGeminiApiKey();
 
   if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE" || apiKey.trim() === "") {
     // Save failed status to database
@@ -32,6 +38,13 @@ export async function summarizeChat(groupId: string, rawChat: string): Promise<S
         syncError: "กรุณาใส่ GEMINI_API_KEY ของคุณในไฟล์ .env.local เพื่อเรียกใช้งานการสรุปข้อมูลจริงจาก AI",
       },
     });
+
+    await logToSystem(
+      "ai_summary",
+      "warning",
+      `AI Summary skipped for group ${groupId}: Missing GEMINI_API_KEY`,
+      "GEMINI_API_KEY is not configured or using placeholder."
+    );
 
     return {
       success: false,
@@ -190,6 +203,13 @@ Guidelines:
     };
   } catch (err: any) {
     console.error("Gemini API Error:", err);
+
+    await logToSystem(
+      "ai_summary",
+      "error",
+      `AI Summary failed for group ${groupId}: ${err.message || err}`,
+      err.stack || String(err)
+    );
 
     // Save failed status to database
     try {

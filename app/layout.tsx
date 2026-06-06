@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Sarabun, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "sonner";
 
 const sarabun = Sarabun({
   variable: "--font-sarabun",
@@ -28,7 +29,10 @@ export default function RootLayout({
       lang="th"
       className={`${sarabun.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Toaster richColors position="top-right" />
+      </body>
     </html>
   );
 }

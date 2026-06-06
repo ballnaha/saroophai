@@ -4,10 +4,13 @@ import React, { useState, useEffect } from "react";
 import { LineGroup } from "@/lib/MockData";
 import { LineGroupSidebar } from "@/components/LineGroupSidebar";
 import { SummaryDashboard } from "@/components/SummaryDashboard";
+import { SystemStatusDashboard } from "@/components/SystemStatusDashboard";
 import { SignOutButton } from "@/components/SignOutButton";
 import { getLineGroups, toggleActionItemDb } from "@/app/actions/groups";
 import { summarizeChat } from "@/app/actions/summarize";
-import { RefreshCw, MessageSquare } from "lucide-react";
+import { RefreshCw, MessageSquare, Menu } from "lucide-react";
+import { toast } from "sonner";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 type DashboardAppProps = {
   userName?: string | null;
@@ -20,6 +23,12 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
+  const handleSelectGroup = (id: string) => {
+    setSelectedGroupId(id);
+    setIsMobileSidebarOpen(false);
+  };
 
   useEffect(() => {
     async function loadGroups() {
@@ -82,7 +91,7 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
             };
           })
         );
-        alert("ไม่สามารถบันทึกสถานะลงฐานข้อมูลได้: " + res.error);
+        toast.error("ไม่สามารถบันทึกสถานะลงฐานข้อมูลได้: " + res.error);
       }
     } catch (err: any) {
       setGroups((prevGroups) =>
@@ -97,7 +106,7 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
           };
         })
       );
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: " + err.message);
+      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: " + err.message);
     }
   };
 
@@ -168,26 +177,82 @@ export function DashboardApp({ userName, userEmail }: DashboardAppProps) {
 
   return (
     <div className="flex h-screen bg-white text-zinc-800 font-sans overflow-hidden">
-      <LineGroupSidebar
-        groups={groups}
-        selectedGroupId={selectedGroupId}
-        onSelectGroup={setSelectedGroupId}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
-
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="h-14 shrink-0 border-b border-zinc-200 bg-white px-4 flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-zinc-500">Signed in as</p>
-            <p className="truncate text-sm font-bold text-zinc-800">
-              {userName || userEmail || "Google user"}
-            </p>
+      {/* Mobile Drawer Navigation Sidebar */}
+      <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
+        <SheetContent side="left" className="p-0 border-none w-80 bg-[#0a0b0d]">
+          <div className="sr-only">
+            <h2>Navigation Drawer</h2>
+            <p>Select a LINE group or configure status.</p>
           </div>
-          <SignOutButton />
+          <LineGroupSidebar
+            groups={groups}
+            selectedGroupId={selectedGroupId}
+            onSelectGroup={handleSelectGroup}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop Sidebar (hidden on mobile) */}
+      <div className="hidden lg:flex shrink-0 h-full">
+        <LineGroupSidebar
+          groups={groups}
+          selectedGroupId={selectedGroupId}
+          onSelectGroup={handleSelectGroup}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
+      </div>
+
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-50">
+        <header className="h-16 shrink-0 border-b border-zinc-200/80 bg-white/70 backdrop-blur-md px-6 flex items-center justify-between z-30">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Hamburger Button for Mobile */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="lg:hidden p-2 -ml-2 rounded-xl text-zinc-500 hover:bg-zinc-150 hover:text-zinc-800 active:scale-95 transition-all cursor-pointer"
+              aria-label="Toggle sidebar"
+            >
+              <Menu className="size-5" />
+            </button>
+
+            {/* Breadcrumb path */}
+            <div className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase tracking-widest min-w-0 select-none">
+              <span>SaroopHai Portal</span>
+              <span className="text-zinc-300">/</span>
+              {selectedGroupId === "system_status" ? (
+                <span className="text-zinc-650 font-extrabold truncate">สถานะและบันทึกระบบ</span>
+              ) : activeGroup ? (
+                <span className="text-zinc-700 font-extrabold truncate">{activeGroup.name}</span>
+              ) : (
+                <span className="text-zinc-600 font-extrabold truncate">แดชบอร์ด</span>
+              )}
+            </div>
+          </div>
+
+          {/* User Profile Info & Sign Out */}
+          <div className="flex items-center gap-3.5">
+            <div className="flex items-center gap-2.5 bg-zinc-50 border border-zinc-150 px-3 py-1.5 rounded-xl select-none">
+              <div className="size-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-extrabold text-xs shadow-inner">
+                {userName ? userName[0].toUpperCase() : "U"}
+              </div>
+              <div className="hidden md:block text-left">
+                <p className="text-xs font-bold text-zinc-800 leading-none truncate max-w-[120px]">
+                  {userName || "Google User"}
+                </p>
+                <p className="text-[10px] text-zinc-455 font-semibold leading-none mt-1 truncate max-w-[120px]">
+                  {userEmail || "user@email.com"}
+                </p>
+              </div>
+            </div>
+            <SignOutButton />
+          </div>
         </header>
 
-        {activeGroup ? (
+        {selectedGroupId === "system_status" ? (
+          <SystemStatusDashboard />
+        ) : activeGroup ? (
           <SummaryDashboard
             group={activeGroup}
             onSync={handleSyncGroup}
