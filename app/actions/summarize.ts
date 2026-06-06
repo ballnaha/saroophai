@@ -3,6 +3,7 @@
 import { GoogleGenAI } from "@google/genai";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { auth } from "@/auth";
 
 interface SummarizeResult {
   success: boolean;
@@ -11,6 +12,15 @@ interface SummarizeResult {
 }
 
 export async function summarizeChat(groupId: string, rawChat: string): Promise<SummarizeResult> {
+  const session = await auth();
+
+  if (!session?.user) {
+    return {
+      success: false,
+      error: "Unauthorized",
+    };
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE" || apiKey.trim() === "") {
