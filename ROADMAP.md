@@ -51,8 +51,20 @@ For local development, add this authorized redirect URI in Google Cloud Console:
 http://localhost:4010/api/auth/callback/google
 ```
 
+For the production domain, add this authorized redirect URI in Google Cloud Console:
+
+```text
+https://saroophai.tradingchill.com/api/auth/callback/google
+```
+
 For local development, create a separate LINE Login channel and add this callback URL in LINE Developers:
 
 ```text
 http://localhost:4010/api/auth/callback/line
+```
+
+For the production domain, add this callback URL in LINE Developers:
+
+```text
+https://saroophai.tradingchill.com/api/auth/callback/line
 ```
