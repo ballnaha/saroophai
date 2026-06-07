@@ -2,6 +2,12 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function getTodayAt(hour: number, minute: number): Date {
+  const d = new Date();
+  d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
 async function main() {
   console.log("Seeding started...");
 
@@ -16,11 +22,13 @@ async function main() {
       id: "grp_01",
       name: "PSC Development Team",
       avatarColor: "#10b981",
+      groupImageUrl: "/uploads/line/mock/group-dev.svg",
       unreadCount: 4,
       lastActive: "15:42",
       membersCount: 12,
       syncStatus: "completed",
       lastSynced: "10 นาทีที่แล้ว",
+      lastSyncedAt: new Date(Date.now() - 10 * 60 * 1000),
       messagesToday: 184,
       messagesChange: 24,
       activeContributorsCount: 8,
@@ -47,9 +55,9 @@ async function main() {
 [16:30] Nattapon (PM): สรุปตามนี้ครับ พรุ่งนี้ 10 โมงเช้า รบกวนทุกคนเข้าซ้อมเดโมตัวระบบที่จะพรีเซนต์ให้ผู้บริหารวันจันทร์ด้วยนะครับ เดี๋ยวผมทำสไลด์พรีเซนต์รอไว้`,
       contributors: {
         create: [
-          { name: "Thanya (Dev)", messagesCount: 52, avatarColor: "#6366f1" },
-          { name: "Kittisak (QA)", messagesCount: 38, avatarColor: "#f59e0b" },
-          { name: "Nattapon (PM)", messagesCount: 31, avatarColor: "#f43f5e" },
+          { name: "Thanya (Dev)", messagesCount: 52, avatarColor: "#6366f1", profileImageUrl: "/uploads/line/mock/avatar-thanya.svg" },
+          { name: "Kittisak (QA)", messagesCount: 38, avatarColor: "#f59e0b", profileImageUrl: "/uploads/line/mock/avatar-kittisak.svg" },
+          { name: "Nattapon (PM)", messagesCount: 31, avatarColor: "#f43f5e", profileImageUrl: "/uploads/line/mock/avatar-nattapon.svg" },
           { name: "Somsak (UX)", messagesCount: 22, avatarColor: "#14b8a6" },
         ]
       },
@@ -91,6 +99,41 @@ async function main() {
             ]
           }
         ]
+      },
+      attachments: {
+        create: [
+          {
+            id: "mock_img_grp_01_dashboard_review",
+            senderName: "Somsak (UX)",
+            messageType: "image",
+            contentProviderType: "mock",
+            filePath: "/uploads/line/mock/project-dashboard-review.svg",
+            mimeType: "image/svg+xml",
+            fileSize: 2450,
+            messageTimestamp: getTodayAt(14, 52),
+          },
+          {
+            id: "mock_img_grp_01_staging_preview",
+            senderName: "Nattapon (PM)",
+            messageType: "image",
+            contentProviderType: "mock",
+            filePath: "/uploads/line/mock/staging-link-preview.svg",
+            mimeType: "image/svg+xml",
+            fileSize: 2200,
+            messageTimestamp: getTodayAt(14, 47),
+          },
+          {
+            id: "mock_vid_grp_01_demo",
+            senderName: "Thanya (Dev)",
+            messageType: "video",
+            contentProviderType: "mock",
+            originalContentUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            previewImageUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg",
+            mimeType: "video/mp4",
+            fileSize: 153000,
+            messageTimestamp: getTodayAt(15, 12),
+          },
+        ],
       }
     }
   });
@@ -101,11 +144,13 @@ async function main() {
       id: "grp_02",
       name: "Sales & Marketing Sync",
       avatarColor: "#f43f5e",
+      groupImageUrl: "/uploads/line/mock/group-sales.svg",
       unreadCount: 0,
       lastActive: "12:15",
       membersCount: 8,
       syncStatus: "completed",
       lastSynced: "2 ชั่วโมงที่แล้ว",
+      lastSyncedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
       messagesToday: 95,
       messagesChange: -10,
       activeContributorsCount: 4,
@@ -128,7 +173,7 @@ async function main() {
       contributors: {
         create: [
           { name: "Kanya (Sales)", messagesCount: 35, avatarColor: "#a855f7" },
-          { name: "Vichai (Mkt)", messagesCount: 30, avatarColor: "#10b981" },
+          { name: "Vichai (Mkt)", messagesCount: 30, avatarColor: "#10b981", profileImageUrl: "/uploads/line/mock/avatar-vichai.svg" },
           { name: "Prasert (VP)", messagesCount: 20, avatarColor: "#f59e0b" },
           { name: "Sarah (Admin)", messagesCount: 10, avatarColor: "#0ea5e9" },
         ]
@@ -161,6 +206,20 @@ async function main() {
             ]
           }
         ]
+      },
+      attachments: {
+        create: [
+          {
+            id: "mock_img_grp_02_campaign_brief",
+            senderName: "Vichai (Mkt)",
+            messageType: "image",
+            contentProviderType: "mock",
+            filePath: "/uploads/line/mock/campaign-banner-brief.svg",
+            mimeType: "image/svg+xml",
+            fileSize: 2300,
+            messageTimestamp: getTodayAt(15, 16),
+          },
+        ],
       }
     }
   });
@@ -171,11 +230,13 @@ async function main() {
       id: "grp_03",
       name: "ประสานงานลูกค้า (SCG Project)",
       avatarColor: "#3b82f6",
+      groupImageUrl: "/uploads/line/mock/group-scg.svg",
       unreadCount: 15,
       lastActive: "15:52",
       membersCount: 6,
       syncStatus: "idle",
       lastSynced: "ยังไม่เคยซิงค์ข้อมูลวันนี้",
+      lastSyncedAt: null,
       messagesToday: 42,
       messagesChange: 5,
       activeContributorsCount: 3,
@@ -203,7 +264,78 @@ async function main() {
           { name: "Nattapon (PM)", messagesCount: 5, avatarColor: "#f43f5e" },
         ]
       }
-      // Note: No initial action items or topics as it is in 'idle' state.
+    }
+  });
+
+  // 4. Seed Daily Summary History for testing
+  console.log("Seeding Daily Summaries...");
+  
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(0, 0, 0, 0);
+
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  twoDaysAgo.setHours(0, 0, 0, 0);
+
+  // Group 1 yesterday summary
+  await prisma.dailySummary.create({
+    data: {
+      groupId: "grp_01",
+      summaryDate: yesterday,
+      summaryOverall: "เมื่อวานนี้การพูดคุยของทีมพัฒนาเป็นไปด้วยดี ทีมแก้ไขปัญหา CSS Layout ของหน้า Dashboard บน iPad Pro และนำไปทดสอบบน Staging Environment เรียบร้อย",
+      summaryMorning: "- Thanya ทำการวิเคราะห์หาสาเหตุที่ Layout เพี้ยนบน iPad Pro\n- ทีมร่วมกันเสนอแนวทางการแก้สไตล์หลุด",
+      summaryAfternoon: "- ทีมดันโค้ดขึ้น Git และเริ่ม Deploy ไปยัง Staging Server เพื่อเปิดให้ทีมการตลาดได้ร่วมทดสอบ",
+      summaryEvening: "- Kittisak ตรวจสอบผลงานบน iPad Pro แนวตั้งและยืนยันว่าแก้ไขเรียบร้อยแล้ว\n- PM นัดหมายซ้อมเดโมของจริงในวันถัดไป",
+      messagesCount: 120,
+      activeContributorsCount: 4,
+      sentiment: "Positive",
+      sentimentScore: 85,
+      topics: [
+        {
+          name: "iPad CSS Bug Fix",
+          category: "urgent",
+          relevance: 90,
+          keyPoints: ["ตรวจพบ CSS หลุดในแนวตั้ง", "ได้รับการแก้ไขและ Deploy ทันที"]
+        },
+        {
+          name: "Staging Deployment",
+          category: "work",
+          relevance: 80,
+          keyPoints: ["อัปเดตโค้ดขึ้น staging เรียบร้อย", "ทีมการตลาดเริ่มทำการทดสอบช่วงค่ำ"]
+        }
+      ],
+      actionItems: [
+        { task: "แก้ไข CSS Layout สำหรับ iPad Pro", assignee: "Thanya (Dev)", status: "completed", dueDate: "เมื่อวาน, 12:00" },
+        { task: "ตรวจผลการแสดงผลบน iPad Pro แนวตั้ง", assignee: "Kittisak (QA)", status: "pending", dueDate: "เมื่อวาน, 15:00" }
+      ]
+    }
+  });
+
+  // Group 1 two days ago summary
+  await prisma.dailySummary.create({
+    data: {
+      groupId: "grp_01",
+      summaryDate: twoDaysAgo,
+      summaryOverall: "เมื่อ 2 วันก่อน ทีมมีการวางแผนเบื้องต้นเรื่องฟังก์ชันรายงานผลลัพธ์ที่จะพัฒนาในสัปดาห์หน้า โดย Somsak (UX) กำลังออกแบบหน้าเดโม",
+      summaryMorning: "- PM บรีฟหัวข้อความต้องการของระบบรายงานที่จะส่งต่อให้ผู้บริหาร\n- ทีมพัฒนาร่วมแสดงความเห็นเกี่ยวกับขีดความสามารถของระบบ",
+      summaryAfternoon: "- Somsak เริ่มทำการออกแบบ Mockup และจะอัปโหลดใส่ Figma ช่วงเย็น",
+      summaryEvening: "- ทีมตกลงจะมาคุยรายละเอียด UI บลูปรินต์กันอีกครั้งหลังจาก Mockup เสร็จ",
+      messagesCount: 64,
+      activeContributorsCount: 3,
+      sentiment: "Neutral",
+      sentimentScore: 65,
+      topics: [
+        {
+          name: "Report System Planning",
+          category: "work",
+          relevance: 75,
+          keyPoints: ["เตรียมแบบร่างความต้องการสำหรับระบบรายงาน", "Somsak รับหน้าที่ออกแบบ Mockup ลง Figma"]
+        }
+      ],
+      actionItems: [
+        { task: "ออกแบบรายงานเวอร์ชันแรกใน Figma", assignee: "Somsak (UX)", status: "pending", dueDate: "2 วันก่อน, 18:00" }
+      ]
     }
   });
 

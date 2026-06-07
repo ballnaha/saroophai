@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
+import { signOut } from "next-auth/react";
 import { LineGroup } from "../lib/MockData";
+import { toast } from "sonner";
 import {
   Avatar,
   Badge,
@@ -53,12 +55,12 @@ function initials(name: string) {
 
 function syncMeta(status: LineGroup["syncStatus"]) {
   if (status === "completed") {
-    return { label: "ซิงค์แล้ว", color: "#34d399", icon: CheckCircle };
+    return { label: "ซิงค์แล้ว", color: "#10b981", icon: CheckCircle };
   }
   if (status === "syncing") {
-    return { label: "กำลังซิงค์", color: "#f59e0b", icon: RefreshCw };
+    return { label: "กำลังซิงค์", color: "#d97706", icon: RefreshCw };
   }
-  return { label: "ไม่ได้ซิงค์", color: "#71717a", icon: Clock };
+  return { label: "ไม่ได้ซิงค์", color: "#6e6e73", icon: Clock };
 }
 
 function avatarColorToCss(color: string) {
@@ -83,6 +85,14 @@ function avatarColorToCss(color: string) {
   return legacyNamedColors[legacyName ?? ""] ?? "#10b981";
 }
 
+function getAttachmentUrl(attachment: NonNullable<LineGroup["attachments"]>[number]): string | null {
+  return attachment.filePath || attachment.previewImageUrl || attachment.originalContentUrl || null;
+}
+
+function getLatestImageAttachment(group: LineGroup) {
+  return (group.attachments || []).find((attachment) => attachment.messageType === "image" && getAttachmentUrl(attachment));
+}
+
 export function LineGroupSidebar({
   groups,
   selectedGroupId,
@@ -100,10 +110,12 @@ export function LineGroupSidebar({
   const effectiveCollapsed = isCollapsed && isDesktop;
 
   React.useEffect(() => {
-    const saved = localStorage.getItem("sidebar_collapsed");
-    if (saved === "true") {
-      setIsCollapsed(true);
-    }
+    queueMicrotask(() => {
+      const saved = localStorage.getItem("sidebar_collapsed");
+      if (saved === "true") {
+        setIsCollapsed(true);
+      }
+    });
   }, []);
 
   const handleToggleCollapse = () => {
@@ -145,9 +157,11 @@ export function LineGroupSidebar({
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
-        bgcolor: "#0a0b0d",
-        borderRight: "1px solid #18181b",
-        color: "#e4e4e7",
+        bgcolor: "rgba(243, 244, 246, 0.72)",
+        backdropFilter: "blur(28px)",
+        WebkitBackdropFilter: "blur(28px)",
+        borderRight: "1px solid rgba(0, 0, 0, 0.08)",
+        color: "#1d1d1f",
         userSelect: "none",
         transition: "width 220ms cubic-bezier(0.4, 0, 0.2, 1)",
         overflowX: "hidden",
@@ -155,33 +169,92 @@ export function LineGroupSidebar({
     >
       {/* Brand Header */}
       {effectiveCollapsed ? (
-        <Box sx={{ p: 2, display: "flex", justifyContent: "center", borderBottom: "1px solid #18181b", minHeight: 73, alignItems: "center" }}>
-          <Avatar sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: "#059669", boxShadow: "0 10px 20px rgba(5,150,105,0.2)" }}>
-            <MessageSquare size={18} />
-          </Avatar>
-        </Box>
+        <Stack sx={{ p: 2, borderBottom: "1px solid rgba(0, 0, 0, 0.06)", minHeight: 96, alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
+          {/* Traffic Light Dots */}
+          <Stack direction="row" spacing={0.65} sx={{ display: { xs: "none", lg: "flex" } }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#ff5f56", border: "0.5px solid #e0443e", cursor: "pointer" }} onClick={() => signOut({ callbackUrl: "/login" })} />
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#ffbd2e", border: "0.5px solid #dea123", cursor: "pointer" }} onClick={handleToggleCollapse} />
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#27c93f", border: "0.5px solid #1aab29", cursor: "pointer" }} onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => console.log(err));
+              } else {
+                document.exitFullscreen();
+              }
+            }} />
+          </Stack>
+
+          <Tooltip title="ขยายแถบข้าง" placement="right">
+            <IconButton
+              onClick={handleToggleCollapse}
+              sx={{
+                color: "#515154",
+                borderRadius: 2,
+                width: 38,
+                height: 38,
+                border: "1px solid rgba(0, 0, 0, 0.08)",
+                bgcolor: "rgba(0, 0, 0, 0.03)",
+                "&:hover": { bgcolor: "rgba(0, 0, 0, 0.07)", color: "#1d1d1f", borderColor: "rgba(0, 0, 0, 0.12)" },
+              }}
+            >
+              <ChevronRight size={16} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       ) : (
         <Stack
-          direction="row"
           sx={{
-            alignItems: "center",
-            justifyContent: "space-between",
             p: 2,
-            borderBottom: "1px solid #18181b",
-            minHeight: 73,
+            borderBottom: "1px solid rgba(0, 0, 0, 0.06)",
+            minHeight: 96,
+            justifyContent: "space-between",
+            gap: 1.5,
           }}
         >
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
-            <Avatar sx={{ width: 38, height: 38, borderRadius: 2.5, bgcolor: "#059669", boxShadow: "0 10px 20px rgba(5,150,105,0.2)" }}>
-              <MessageSquare size={18} />
-            </Avatar>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography noWrap sx={{ fontSize: 14, lineHeight: 1.1, fontWeight: 600, color: "#fff" }}>
-                LINE Summarizer
-              </Typography>
-              <Typography sx={{ mt: 0.5, fontSize: 8.5, fontWeight: 500, letterSpacing: 0.8, color: "#34d399", textTransform: "uppercase" }}>
-                AI Analytics Portal
-              </Typography>
+          {/* Top row with Traffic Lights */}
+          <Stack direction="row" spacing={0.65} sx={{ display: { xs: "none", lg: "flex" }, pb: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#ff5f56", border: "0.5px solid #e0443e", cursor: "pointer" }} onClick={() => signOut({ callbackUrl: "/login" })} />
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#ffbd2e", border: "0.5px solid #dea123", cursor: "pointer" }} onClick={handleToggleCollapse} />
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#27c93f", border: "0.5px solid #1aab29", cursor: "pointer" }} onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => console.log(err));
+              } else {
+                document.exitFullscreen();
+              }
+            }} />
+          </Stack>
+
+          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
+              <Avatar sx={{ width: 38, height: 38, borderRadius: 2.5, bgcolor: "#0071e3", boxShadow: "0 8px 20px rgba(0, 113, 227, 0.18)" }}>
+                <MessageSquare size={18} />
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography noWrap sx={{ fontSize: 14, lineHeight: 1.1, fontWeight: 600, color: "#1c1c1e" }}>
+                  LINE Summarizer
+                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 8.5, fontWeight: 500, letterSpacing: 0.8, color: "#0071e3", textTransform: "uppercase" }}>
+                  AI Analytics Portal
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Box sx={{ display: { xs: "none", lg: "block" } }}>
+              <Tooltip title="ยุบแถบข้าง" placement="right">
+                <IconButton
+                  onClick={handleToggleCollapse}
+                  sx={{
+                    color: "#515154",
+                    borderRadius: 2,
+                    width: 36,
+                    height: 36,
+                    border: "1px solid rgba(0, 0, 0, 0.08)",
+                    bgcolor: "rgba(0, 0, 0, 0.03)",
+                    "&:hover": { bgcolor: "rgba(0, 0, 0, 0.07)", color: "#1d1d1f", borderColor: "rgba(0, 0, 0, 0.12)" },
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                </IconButton>
+              </Tooltip>
             </Box>
           </Stack>
         </Stack>
@@ -189,18 +262,18 @@ export function LineGroupSidebar({
 
       {/* Search Section */}
       {effectiveCollapsed ? (
-        <Box sx={{ p: 1.5, display: "flex", justifyContent: "center", borderBottom: "1px solid #18181b" }}>
+        <Box sx={{ p: 1.5, display: "flex", justifyContent: "center", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
           <Tooltip title="ค้นหากลุ่ม LINE" placement="right">
             <IconButton
               onClick={handleSearchClick}
               sx={{
-                color: "#a1a1aa",
+                color: "#6e6e73",
                 borderRadius: 2.5,
-                bgcolor: "rgba(24,24,27,0.78)",
-                border: "1px solid #27272a",
+                bgcolor: "rgba(0,0,0,0.03)",
+                border: "1px solid rgba(0,0,0,0.08)",
                 width: 40,
                 height: 40,
-                "&:hover": { bgcolor: "rgba(39,39,42,0.72)", color: "#fff", borderColor: "#3f3f46" },
+                "&:hover": { bgcolor: "rgba(0,0,0,0.07)", color: "#1d1d1f", borderColor: "rgba(0,0,0,0.12)" },
               }}
             >
               <Search size={18} />
@@ -208,7 +281,7 @@ export function LineGroupSidebar({
           </Tooltip>
         </Box>
       ) : (
-        <Box sx={{ p: 1.5, borderBottom: "1px solid #18181b" }}>
+        <Box sx={{ p: 1.5, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
           <TextField
             fullWidth
             size="small"
@@ -220,7 +293,7 @@ export function LineGroupSidebar({
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Search size={15} color="#71717a" />
+                    <Search size={15} color="#6e6e73" />
                   </InputAdornment>
                 ),
               },
@@ -229,15 +302,15 @@ export function LineGroupSidebar({
               "& .MuiOutlinedInput-root": {
                 height: 36,
                 borderRadius: 2.5,
-                bgcolor: "rgba(24,24,27,0.78)",
-                color: "#e4e4e7",
+                bgcolor: "rgba(255,255,255,0.72)",
+                color: "#1d1d1f",
                 fontSize: 13,
                 fontWeight: 500,
-                "& fieldset": { borderColor: "#27272a" },
-                "&:hover fieldset": { borderColor: "#3f3f46" },
-                "&.Mui-focused fieldset": { borderColor: "#10b981", borderWidth: 1 },
+                "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
               },
-              "& input::placeholder": { color: "#71717a", opacity: 1 },
+              "& input::placeholder": { color: "#8e8e93", opacity: 1 },
             }}
           />
         </Box>
@@ -257,17 +330,17 @@ export function LineGroupSidebar({
                 <IconButton
                   onClick={handleGroupsClickCollapsed}
                   sx={{
-                    color: selectedGroupId !== "system_status" ? "#ecfdf5" : "#a1a1aa",
+                    color: selectedGroupId !== "system_status" ? "#0071e3" : "#6e6e73",
                     borderRadius: 2.5,
-                    bgcolor: selectedGroupId !== "system_status" ? "rgba(6,78,59,0.26)" : "transparent",
-                    border: selectedGroupId !== "system_status" ? "1px solid rgba(16,185,129,0.38)" : "1px solid transparent",
+                    bgcolor: selectedGroupId !== "system_status" ? "rgba(0,113,227,0.12)" : "transparent",
+                    border: selectedGroupId !== "system_status" ? "1px solid rgba(0,113,227,0.22)" : "1px solid transparent",
                     width: 44,
                     height: 44,
                     transition: "all 160ms ease",
                     "&:hover": {
-                      bgcolor: selectedGroupId !== "system_status" ? "rgba(6,78,59,0.34)" : "rgba(39,39,42,0.6)",
-                      color: "#f4f4f5",
-                      borderColor: selectedGroupId !== "system_status" ? "rgba(16,185,129,0.5)" : "#27272a",
+                      bgcolor: selectedGroupId !== "system_status" ? "rgba(0,113,227,0.16)" : "rgba(0,0,0,0.04)",
+                      color: "#1d1d1f",
+                      borderColor: selectedGroupId !== "system_status" ? "rgba(0,113,227,0.3)" : "rgba(0,0,0,0.08)",
                     },
                   }}
                 >
@@ -292,21 +365,23 @@ export function LineGroupSidebar({
               slotProps={{
                 paper: {
                   sx: {
-                    bgcolor: "#0a0b0d",
-                    border: "1px solid #18181b",
+                    bgcolor: "rgba(255,255,255,0.92)",
+                    backdropFilter: "blur(20px)",
+                    WebkitBackdropFilter: "blur(20px)",
+                    border: "1px solid rgba(0,0,0,0.08)",
                     borderRadius: 3,
                     width: 260,
                     maxHeight: 450,
                     display: "flex",
                     flexDirection: "column",
-                    boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+                    boxShadow: "0 10px 40px rgba(0,0,0,0.12)",
                     p: 1,
                     ml: 1.5,
                   },
                 },
               }}
             >
-              <Typography sx={{ px: 1.5, py: 1, fontSize: 11, fontWeight: 600, color: "#d4d4d8", letterSpacing: 1, textTransform: "uppercase", borderBottom: "1px solid #18181b", mb: 1 }}>
+              <Typography sx={{ px: 1.5, py: 1, fontSize: 11, fontWeight: 600, color: "#1d1d1f", letterSpacing: 1, textTransform: "uppercase", borderBottom: "1px solid rgba(0,0,0,0.06)", mb: 1 }}>
                 กลุ่มแชททั้งหมด ({filteredGroups.length})
               </Typography>
               <Stack spacing={0.75} sx={{ overflowY: "auto", maxHeight: 380 }}>
@@ -322,7 +397,7 @@ export function LineGroupSidebar({
                   />
                 ))}
                 {filteredGroups.length === 0 && (
-                  <Typography sx={{ py: 3, textAlign: "center", fontSize: 12, color: "#52525b" }}>
+                  <Typography sx={{ py: 3, textAlign: "center", fontSize: 12, color: "#8e8e93" }}>
                     ไม่พบกลุ่ม LINE
                   </Typography>
                 )}
@@ -341,19 +416,19 @@ export function LineGroupSidebar({
                 justifyContent: "space-between",
                 px: 2,
                 py: 1.5,
-                borderBottom: "1px solid rgba(24,24,27,0.65)",
-                bgcolor: "rgba(10,11,13,0.84)",
-                color: "#d4d4d8",
-                "&:hover": { bgcolor: "rgba(24,24,27,0.9)" },
+                borderBottom: "1px solid rgba(0,0,0,0.06)",
+                bgcolor: "rgba(255,255,255,0.4)",
+                color: "#1c1c1e",
+                "&:hover": { bgcolor: "rgba(0,0,0,0.05)" },
               }}
             >
               <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-                <MessageSquare size={16} color="#71717a" />
+                <MessageSquare size={16} color="#6e6e73" />
                 <Box sx={{ textAlign: "left" }}>
                   <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>
                     กลุ่มแชท
                   </Typography>
-                  <Typography sx={{ fontSize: 9, fontWeight: 500, color: "#52525b" }}>
+                  <Typography sx={{ fontSize: 9, fontWeight: 500, color: "#8e8e93" }}>
                     LINE GROUPS
                   </Typography>
                 </Box>
@@ -364,9 +439,9 @@ export function LineGroupSidebar({
                     height: 18,
                     minWidth: 26,
                     borderRadius: 999,
-                    bgcolor: "rgba(24,24,27,0.88)",
-                    border: "1px solid #27272a",
-                    color: "#a1a1aa",
+                    bgcolor: "rgba(0,0,0,0.05)",
+                    border: "1px solid rgba(0,0,0,0.06)",
+                    color: "#6e6e73",
                     fontSize: 10,
                     fontWeight: 600,
                   }}
@@ -377,7 +452,7 @@ export function LineGroupSidebar({
                 style={{
                   transform: isGroupsExpanded ? "rotate(0deg)" : "rotate(-90deg)",
                   transition: "transform 150ms ease",
-                  color: "#71717a",
+                  color: "#6e6e73",
                 }}
               />
             </ButtonBase>
@@ -395,7 +470,7 @@ export function LineGroupSidebar({
 
                 {filteredGroups.length === 0 && (
                   <Box sx={{ py: 6, textAlign: "center" }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#52525b" }}>ไม่พบกลุ่ม LINE ที่ต้องการค้นหา</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#8e8e93" }}>ไม่พบกลุ่ม LINE ที่ต้องการค้นหา</Typography>
                   </Box>
                 )}
               </Stack>
@@ -411,9 +486,9 @@ export function LineGroupSidebar({
         sx={{
           flexShrink: 0,
           p: 1.5,
-          borderTop: "1px solid #18181b",
-          bgcolor: "rgba(10,11,13,0.96)",
-          boxShadow: "0 -18px 28px rgba(0,0,0,0.18)",
+          borderTop: "1px solid rgba(0, 0, 0, 0.08)",
+          bgcolor: "rgba(246, 247, 249, 0.92)",
+          boxShadow: "0 -18px 28px rgba(0, 0, 0, 0.03)",
           display: "flex",
           flexDirection: "column",
           gap: 1.5,
@@ -426,17 +501,17 @@ export function LineGroupSidebar({
               <IconButton
                 onClick={() => onSelectGroup("system_status")}
                 sx={{
-                  color: selectedGroupId === "system_status" ? "#ecfdf5" : "#a1a1aa",
+                  color: selectedGroupId === "system_status" ? "#0071e3" : "#6e6e73",
                   borderRadius: 2.5,
-                  bgcolor: selectedGroupId === "system_status" ? "rgba(6,78,59,0.26)" : "transparent",
-                  border: selectedGroupId === "system_status" ? "1px solid rgba(16,185,129,0.38)" : "1px solid transparent",
+                  bgcolor: selectedGroupId === "system_status" ? "rgba(0,113,227,0.12)" : "transparent",
+                  border: selectedGroupId === "system_status" ? "1px solid rgba(0,113,227,0.22)" : "1px solid transparent",
                   width: 44,
                   height: 44,
                   transition: "all 160ms ease",
                   "&:hover": {
-                    bgcolor: selectedGroupId === "system_status" ? "rgba(6,78,59,0.34)" : "rgba(39,39,42,0.6)",
-                    color: "#f4f4f5",
-                    borderColor: selectedGroupId === "system_status" ? "rgba(16,185,129,0.5)" : "#27272a",
+                    bgcolor: selectedGroupId === "system_status" ? "rgba(0,113,227,0.16)" : "rgba(0,0,0,0.04)",
+                    color: "#1d1d1f",
+                    borderColor: selectedGroupId === "system_status" ? "rgba(0,113,227,0.3)" : "rgba(0,0,0,0.08)",
                   },
                 }}
               >
@@ -453,26 +528,6 @@ export function LineGroupSidebar({
             />
           </Box>
         )}
-
-        {/* Toggle Collapse Button (Desktop Only) */}
-        <Box sx={{ display: { xs: "none", lg: "flex" }, justifyContent: effectiveCollapsed ? "center" : "flex-end" }}>
-          <Tooltip title={effectiveCollapsed ? "ขยายแถบข้าง" : "ยุบแถบข้าง"} placement="right">
-            <IconButton
-              onClick={handleToggleCollapse}
-              sx={{
-                color: "#71717a",
-                borderRadius: 2,
-                width: 36,
-                height: 36,
-                border: "1px solid #18181b",
-                bgcolor: "rgba(24,24,27,0.3)",
-                "&:hover": { bgcolor: "rgba(39,39,42,0.5)", color: "#fff", borderColor: "#27272a" },
-              }}
-            >
-              {effectiveCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-            </IconButton>
-          </Tooltip>
-        </Box>
       </Box>
     </Box>
   );
@@ -499,15 +554,15 @@ function SidebarSectionHeader({
         px: compact ? 0.5 : 2,
         pt: compact ? 0 : 1.5,
         pb: compact ? 1 : 1.25,
-        borderBottom: compact ? 0 : "1px solid rgba(24,24,27,0.65)",
-        bgcolor: compact ? "transparent" : "rgba(10,11,13,0.84)",
+        borderBottom: compact ? 0 : "none",
+        bgcolor: "transparent",
       }}
     >
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.35, color: "#d4d4d8", textTransform: "uppercase" }}>
+        <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.35, color: "#1d1d1f", textTransform: "uppercase" }}>
           {title}
         </Typography>
-        <Typography sx={{ mt: 0.2, fontSize: 9, fontWeight: 500, color: "#52525b" }}>
+        <Typography sx={{ mt: 0.2, fontSize: 9, fontWeight: 500, color: "#8e8e93" }}>
           {description}
         </Typography>
       </Box>
@@ -519,9 +574,9 @@ function SidebarSectionHeader({
             height: 20,
             minWidth: 30,
             borderRadius: 999,
-            bgcolor: "rgba(24,24,27,0.88)",
-            border: "1px solid #27272a",
-            color: "#a1a1aa",
+            bgcolor: "rgba(0,0,0,0.05)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            color: "#6e6e73",
             fontSize: 10,
             fontWeight: 600,
           }}
@@ -550,24 +605,24 @@ function SystemMenuButton({
         borderRadius: 3,
         textAlign: "left",
         position: "relative",
-        border: selected ? "1px solid rgba(16,185,129,0.38)" : "1px solid #18181b",
-        bgcolor: selected ? "rgba(6,78,59,0.26)" : "rgba(24,24,27,0.5)",
-        color: selected ? "#ecfdf5" : "#a1a1aa",
+        border: selected ? "1px solid rgba(0,113,227,0.22)" : "1px solid rgba(0,0,0,0.08)",
+        bgcolor: selected ? "rgba(0,113,227,0.12)" : "rgba(255,255,255,0.58)",
+        color: selected ? "#1d1d1f" : "#6e6e73",
         transition: "all 160ms ease",
-        "&:hover": { bgcolor: selected ? "rgba(6,78,59,0.34)" : "rgba(39,39,42,0.72)", color: "#f4f4f5" },
+        "&:hover": { bgcolor: selected ? "rgba(0,113,227,0.16)" : "rgba(0,0,0,0.04)", color: "#1d1d1f" },
       }}
     >
       {selected && (
-        <Box sx={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 4, borderRadius: "0 6px 6px 0", bgcolor: "#34d399" }} />
+        <Box sx={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 4, borderRadius: "0 6px 6px 0", bgcolor: "#0071e3" }} />
       )}
       <Avatar
         sx={{
           width: 32,
           height: 32,
           borderRadius: 2.5,
-          bgcolor: selected ? "#10b981" : "#0f1115",
-          border: selected ? "1px solid rgba(167,243,208,0.32)" : "1px solid #27272a",
-          color: selected ? "#fff" : "#a1a1aa",
+          bgcolor: selected ? "#0071e3" : "rgba(0,0,0,0.04)",
+          border: selected ? "1px solid rgba(255,255,255,0.4)" : "1px solid rgba(0,0,0,0.08)",
+          color: selected ? "#fff" : "#6e6e73",
         }}
       >
         <Settings size={16} />
@@ -576,7 +631,7 @@ function SystemMenuButton({
         <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: "inherit" }}>
           สถานะและบันทึกระบบ
         </Typography>
-        <Typography noWrap sx={{ mt: 0.1, fontSize: 9, fontWeight: 400, color: selected ? "#86efac" : "#71717a" }}>
+        <Typography noWrap sx={{ mt: 0.1, fontSize: 9, fontWeight: 400, color: selected ? "#0071e3" : "#8e8e93" }}>
           Webhook, Env & System Logs
         </Typography>
       </Box>
@@ -608,15 +663,15 @@ function GroupButton({
         borderRadius: 3,
         textAlign: "left",
         position: "relative",
-        border: selected ? "1px solid rgba(16,185,129,0.32)" : "1px solid transparent",
-        bgcolor: selected ? "rgba(6,78,59,0.24)" : "transparent",
-        color: selected ? "#ecfdf5" : "#a1a1aa",
+        border: selected ? "1px solid rgba(0,113,227,0.22)" : "1px solid transparent",
+        bgcolor: selected ? "rgba(0,113,227,0.12)" : "transparent",
+        color: selected ? "#1d1d1f" : "#6e6e73",
         transition: "all 160ms ease",
-        "&:hover": { bgcolor: selected ? "rgba(6,78,59,0.3)" : "rgba(39,39,42,0.6)", color: "#f4f4f5" },
+        "&:hover": { bgcolor: selected ? "rgba(0,113,227,0.16)" : "rgba(0,0,0,0.04)", color: "#1d1d1f" },
       }}
     >
       {selected && (
-        <Box sx={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 4, borderRadius: "0 6px 6px 0", bgcolor: "#34d399", boxShadow: "0 0 14px rgba(52,211,153,0.34)" }} />
+        <Box sx={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 4, borderRadius: "0 6px 6px 0", bgcolor: "#0071e3", boxShadow: "0 0 14px rgba(0,113,227,0.24)" }} />
       )}
 
       <Badge
@@ -626,6 +681,7 @@ function GroupButton({
         sx={{ "& .MuiBadge-badge": { minWidth: 16, height: 16, fontSize: 9, fontWeight: 600, bgcolor: "#10b981" } }}
       >
         <Avatar
+          src={group.groupImageUrl || undefined}
           sx={{
             width: 32,
             height: 32,
@@ -637,20 +693,20 @@ function GroupButton({
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.18)",
           }}
         >
-          {initials(group.name)}
+          {!group.groupImageUrl && initials(group.name)}
         </Avatar>
       </Badge>
 
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
-          <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: selected ? "#ecfdf5" : "inherit" }}>
+          <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, color: selected ? "#1d1d1f" : "inherit" }}>
             {group.name}
           </Typography>
-          <Typography sx={{ fontSize: 9, fontWeight: 400, color: "#71717a", flexShrink: 0 }}>{group.lastActive}</Typography>
+          <Typography sx={{ fontSize: 9, fontWeight: 400, color: "#8e8e93", flexShrink: 0 }}>{group.lastActive}</Typography>
         </Stack>
 
         <Stack direction="row" sx={{ mt: 0.5, alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", color: "#71717a" }}>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", color: "#8e8e93" }}>
             <Users size={11} />
             <Typography sx={{ fontSize: 10, fontWeight: 400 }}>{group.membersCount} คน</Typography>
           </Stack>

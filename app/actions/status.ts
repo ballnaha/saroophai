@@ -1,5 +1,6 @@
 "use server";
 
+import { GoogleGenAI } from "@google/genai";
 import prisma from "@/lib/prisma";
 import { logToSystem } from "@/lib/logger";
 import { summarizeChatCore } from "./summarize";
@@ -12,6 +13,32 @@ function isConfigured(value: string | undefined, placeholder: string): boolean {
   return Boolean(value && value !== placeholder && value.trim() !== "");
 }
 
+type ApiCheckResult = {
+  ok: boolean;
+  label: string;
+  message: string;
+  details?: string;
+};
+
+function formatCheckError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function getSystemStatus() {
   await requireAdmin();
 
@@ -21,8 +48,8 @@ export async function getSystemStatus() {
   try {
     await prisma.$queryRaw`SELECT 1`;
     dbConnected = true;
-  } catch (err: any) {
-    dbError = err?.message || String(err);
+  } catch (err) {
+    dbError = formatCheckError(err);
   }
 
   const geminiKey = await getGeminiApiKey();
@@ -122,6 +149,156 @@ export async function getSystemStatus() {
   };
 }
 
+export async function testApiConnections(): Promise<{
+  success: boolean;
+  checkedAt: string;
+  results: Record<string, ApiCheckResult>;
+}> {
+  const user = await requireAdmin();
+  const checkedAt = new Date().toISOString();
+  const results: Record<string, ApiCheckResult> = {};
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    results.database = {
+      ok: true,
+      label: "MySQL Database",
+      message: "Database connection is working.",
+    };
+  } catch (error) {
+    results.database = {
+      ok: false,
+      label: "MySQL Database",
+      message: "Database connection failed.",
+      details: formatCheckError(error),
+    };
+  }
+
+  const lineSecret = await getLineChannelSecret();
+  if (isConfigured(lineSecret, "YOUR_LINE_CHANNEL_SECRET_HERE")) {
+    try {
+      const { createHmac } = await import("crypto");
+      createHmac("sha256", lineSecret.trim()).update("{}").digest("base64");
+      results.lineChannelSecret = {
+        ok: true,
+        label: "LINE_CHANNEL_SECRET",
+        message: "Secret is configured and can be used for webhook signature validation.",
+      };
+    } catch (error) {
+      results.lineChannelSecret = {
+        ok: false,
+        label: "LINE_CHANNEL_SECRET",
+        message: "Secret could not be used for signature validation.",
+        details: formatCheckError(error),
+      };
+    }
+  } else {
+    results.lineChannelSecret = {
+      ok: false,
+      label: "LINE_CHANNEL_SECRET",
+      message: "Secret is missing or still using the placeholder value.",
+    };
+  }
+
+  const lineAccessToken = await getLineAccessToken();
+  if (isConfigured(lineAccessToken, "YOUR_LINE_CHANNEL_ACCESS_TOKEN_HERE")) {
+    try {
+      const res = await fetchWithTimeout("https://api.line.me/v2/bot/info", {
+        headers: {
+          Authorization: `Bearer ${lineAccessToken.trim()}`,
+        },
+      });
+      const text = await res.text();
+      let details = text;
+      try {
+        const data = JSON.parse(text);
+        details = data.displayName
+          ? `Bot name: ${data.displayName}`
+          : JSON.stringify(data, null, 2);
+      } catch {
+        // Keep raw response body.
+      }
+
+      results.lineAccessToken = {
+        ok: res.ok,
+        label: "LINE_CHANNEL_ACCESS_TOKEN",
+        message: res.ok
+          ? "LINE Messaging API accepted the access token."
+          : `LINE Messaging API returned HTTP ${res.status}.`,
+        details,
+      };
+    } catch (error) {
+      results.lineAccessToken = {
+        ok: false,
+        label: "LINE_CHANNEL_ACCESS_TOKEN",
+        message: "Could not reach LINE Messaging API.",
+        details: formatCheckError(error),
+      };
+    }
+  } else {
+    results.lineAccessToken = {
+      ok: false,
+      label: "LINE_CHANNEL_ACCESS_TOKEN",
+      message: "Access token is missing or still using the placeholder value.",
+    };
+  }
+
+  const geminiApiKey = await getGeminiApiKey();
+  if (isConfigured(geminiApiKey, "YOUR_GEMINI_API_KEY_HERE")) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey.trim() });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: "Reply with only: ok",
+      });
+      const text = response.text?.trim() || "";
+      results.geminiApiKey = {
+        ok: Boolean(text),
+        label: "GEMINI_API_KEY",
+        message: text ? "Gemini API responded successfully." : "Gemini API returned an empty response.",
+        details: text ? `Response: ${text.slice(0, 80)}` : undefined,
+      };
+    } catch (error) {
+      results.geminiApiKey = {
+        ok: false,
+        label: "GEMINI_API_KEY",
+        message: "Gemini API request failed.",
+        details: formatCheckError(error),
+      };
+    }
+  } else {
+    results.geminiApiKey = {
+      ok: false,
+      label: "GEMINI_API_KEY",
+      message: "API key is missing or still using the placeholder value.",
+    };
+  }
+
+  const failed = Object.values(results).filter((result) => !result.ok);
+
+  await logToSystem(
+    "system",
+    failed.length > 0 ? "warning" : "info",
+    `API connection test completed by ${user.name || user.email}: ${failed.length} failed`,
+    Object.fromEntries(
+      Object.entries(results).map(([key, result]) => [
+        key,
+        {
+          ok: result.ok,
+          message: result.message,
+          details: result.details,
+        },
+      ])
+    )
+  );
+
+  return {
+    success: failed.length === 0,
+    checkedAt,
+    results,
+  };
+}
+
 export async function getSystemLogs() {
   await requireAdmin();
 
@@ -131,8 +308,8 @@ export async function getSystemLogs() {
       take: 100,
     });
     return { success: true, data: logs };
-  } catch (error: any) {
-    return { success: false, error: error?.message || String(error) };
+  } catch (error) {
+    return { success: false, error: formatCheckError(error) };
   }
 }
 
@@ -148,8 +325,8 @@ export async function clearSystemLogs() {
     );
     revalidatePath("/");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error?.message || String(error) };
+  } catch (error) {
+    return { success: false, error: formatCheckError(error) };
   }
 }
 
@@ -183,9 +360,9 @@ export async function triggerDailySummaryJob() {
           failCount++;
           detailsList.push(`Group [${group.name}] summary failed: ${result.error}`);
         }
-      } catch (err: any) {
+      } catch (err) {
         failCount++;
-        detailsList.push(`Group [${group.name}] summary error: ${err?.message || err}`);
+        detailsList.push(`Group [${group.name}] summary error: ${formatCheckError(err)}`);
       }
     }
 
@@ -199,13 +376,13 @@ export async function triggerDailySummaryJob() {
 
     revalidatePath("/");
     return { success: true, message: summaryMsg };
-  } catch (error: any) {
+  } catch (error) {
     await logToSystem(
       "cron",
       "error",
-      `Manual Daily Summary Job failed: ${error?.message || error}`
+      `Manual Daily Summary Job failed: ${formatCheckError(error)}`
     );
-    return { success: false, error: error?.message || String(error) };
+    return { success: false, error: formatCheckError(error) };
   }
 }
 
@@ -217,7 +394,11 @@ export async function saveSystemSettings(data: {
   const user = await requireAdmin();
 
   try {
-    const updateData: any = {};
+    const updateData: {
+      geminiApiKeyEnc?: string;
+      lineChannelSecretEnc?: string;
+      lineAccessTokenEnc?: string;
+    } = {};
     if (data.geminiApiKey !== undefined) {
       updateData.geminiApiKeyEnc = encrypt(data.geminiApiKey);
     }
@@ -250,12 +431,12 @@ export async function saveSystemSettings(data: {
 
     revalidatePath("/");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     await logToSystem(
       "system",
       "error",
-      `Failed to update system configurations: ${error?.message || error}`
+      `Failed to update system configurations: ${formatCheckError(error)}`
     );
-    return { success: false, error: error?.message || String(error) };
+    return { success: false, error: formatCheckError(error) };
   }
 }

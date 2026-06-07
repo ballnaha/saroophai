@@ -2,6 +2,7 @@ export interface Contributor {
   name: string;
   messagesCount: number;
   avatarColor: string;
+  profileImageUrl?: string;
 }
 
 export interface ActionItem {
@@ -13,10 +14,27 @@ export interface ActionItem {
 }
 
 export interface Topic {
+  id?: number;
   name: string;
   category: 'urgent' | 'work' | 'finance' | 'social' | 'general';
   relevance: number; // 0-100
   keyPoints: string[];
+}
+
+export interface LineAttachment {
+  id: string;
+  groupId: string;
+  userId?: string;
+  senderName: string;
+  messageType: string;
+  contentProviderType?: string;
+  filePath?: string;
+  originalContentUrl?: string;
+  previewImageUrl?: string;
+  mimeType?: string;
+  fileSize?: number;
+  messageTimestamp: string;
+  createdAt: string;
 }
 
 export interface LineGroup {
@@ -28,6 +46,7 @@ export interface LineGroup {
   membersCount: number;
   syncStatus: 'idle' | 'syncing' | 'completed' | 'failed';
   lastSynced: string;
+  groupImageUrl?: string;
   stats: {
     messagesToday: number;
     messagesChange: number; // e.g., +15
@@ -47,6 +66,7 @@ export interface LineGroup {
   hourlyActivity: number[]; // 24 values representing hours of the day
   rawChat: string;
   syncError?: string;
+  attachments?: LineAttachment[];
 }
 
 export const mockLineGroups: LineGroup[] = [

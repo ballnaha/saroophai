@@ -76,8 +76,8 @@ export default async function LoginPage({
       component="main"
       sx={{
         minHeight: "100vh",
-        bgcolor: "#030712", // Deep premium dark background
-        color: "#f4f4f5",
+        background: "radial-gradient(circle at 18% -10%, rgba(255, 255, 255, 0.95), transparent 34%), radial-gradient(circle at 88% 4%, rgba(216, 229, 255, 0.64), transparent 30%), linear-gradient(180deg, #f8f9fb 0%, #eef1f5 100%)",
+        color: "#1d1d1f",
         position: "relative",
         overflow: "hidden",
         display: "flex",
@@ -90,7 +90,7 @@ export default async function LoginPage({
           position: "absolute",
           inset: 0,
           backgroundImage:
-            "radial-gradient(circle at 15% 15%, rgba(16,185,129,0.15), transparent 35%), radial-gradient(circle at 85% 85%, rgba(59,130,246,0.15), transparent 35%)",
+            "radial-gradient(circle at 15% 15%, rgba(0, 113, 227, 0.08), transparent 45%), radial-gradient(circle at 85% 85%, rgba(52, 199, 89, 0.08), transparent 45%)",
           pointerEvents: "none",
         }}
       />
@@ -108,14 +108,14 @@ export default async function LoginPage({
           {/* Left Panel (Marketing & Demo) */}
           <Stack spacing={4} sx={{ display: { xs: "none", lg: "flex" } }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-              <Avatar sx={{ width: 40, height: 40, bgcolor: "#059669", borderRadius: 2.5, boxShadow: "0 8px 20px rgba(5,150,105,0.3)" }}>
+              <Avatar sx={{ width: 40, height: 40, bgcolor: "#0071e3", borderRadius: "12px", boxShadow: "0 8px 24px rgba(0,113,227,0.16)" }}>
                 <LineChart size={20} />
               </Avatar>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.1, color: "#fff" }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.1, color: "#1d1d1f" }}>
                   SaroopHai
                 </Typography>
-                <Typography sx={{ mt: 0.5, fontSize: 10, fontWeight: 500, letterSpacing: 1, color: "#34d399", textTransform: "uppercase" }}>
+                <Typography sx={{ mt: 0.5, fontSize: 10, fontWeight: 500, letterSpacing: 1, color: "#0071e3", textTransform: "uppercase" }}>
                   LINE operations intelligence
                 </Typography>
               </Box>
@@ -123,12 +123,12 @@ export default async function LoginPage({
 
             <Box>
               <Chip
-                icon={<Sparkles size={14} color="#34d399" />}
+                icon={<Sparkles size={14} color="#0071e3" />}
                 label="AI Operations Intelligence"
                 sx={{
-                  bgcolor: "rgba(16,185,129,0.1)",
-                  color: "#34d399",
-                  border: "1px solid rgba(16,185,129,0.2)",
+                  bgcolor: "rgba(0,113,227,0.06)",
+                  color: "#0071e3",
+                  border: "1px solid rgba(0,113,227,0.12)",
                   fontWeight: 500,
                   borderRadius: 999,
                   fontSize: 12,
@@ -143,12 +143,12 @@ export default async function LoginPage({
                   fontSize: { lg: 40 },
                   lineHeight: 1.25,
                   fontWeight: 700,
-                  color: "#fff",
+                  color: "#1d1d1f",
                 }}
               >
                 สรุปงานจาก LINE ให้ทีมเห็นภาพเดียวกัน
               </Typography>
-              <Typography sx={{ mt: 2, maxWidth: 560, color: "#a1a1aa", fontSize: 15, lineHeight: 1.75, fontWeight: 400 }}>
+              <Typography sx={{ mt: 2, maxWidth: 560, color: "#6e6e73", fontSize: 15, lineHeight: 1.75, fontWeight: 400 }}>
                 วิเคราะห์แชท สรุปประเด็น ดึง action items และติดตามงานผ่าน Dashboard กลางที่แยกข้อมูลตามบริษัทอย่างชัดเจน
               </Typography>
             </Box>
@@ -158,51 +158,51 @@ export default async function LoginPage({
               elevation={0}
               sx={{
                 maxWidth: 470,
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-                borderRadius: 4,
+                border: "1px solid rgba(0, 0, 0, 0.06)",
+                borderRadius: "16px",
                 overflow: "hidden",
-                bgcolor: "rgba(17, 24, 39, 0.6)", // Darker glass
+                bgcolor: "rgba(255, 255, 255, 0.72)", // Light premium glass
                 backdropFilter: "blur(20px)",
-                boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3)",
+                boxShadow: "0 20px 40px rgba(0, 0, 0, 0.04)",
               }}
             >
               {/* Header bar */}
-              <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", px: 2.5, py: 1.5, borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
+              <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", px: 2.5, py: 1.5, borderBottom: "1px solid rgba(0, 0, 0, 0.06)" }}>
                 <Stack direction="row" spacing={0.75}>
                   {["#ff5f56", "#ffbd2e", "#27c93f"].map((color) => (
                     <Box key={color} sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: color }} />
                   ))}
                 </Stack>
                 <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#34d399", boxShadow: "0 0 8px #34d399" }} />
-                  <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#a1a1aa" }}>Live Summary</Typography>
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#34c759", boxShadow: "0 0 8px rgba(52,199,89,0.4)" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#6e6e73" }}>Live Summary</Typography>
                 </Stack>
               </Stack>
               <Box sx={{ p: 3 }}>
                 <Stack direction="row" spacing={1.5} sx={{ alignItems: "flex-start" }}>
-                  <Avatar sx={{ width: 28, height: 28, bgcolor: "#059669", fontSize: 11, fontWeight: 600, color: "#fff" }}>สม</Avatar>
+                  <Avatar sx={{ width: 28, height: 28, bgcolor: "#0071e3", fontSize: 11, fontWeight: 600, color: "#fff" }}>สม</Avatar>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#e4e4e7" }}>สมยศ</Typography>
-                    <Typography sx={{ mt: 0.5, fontSize: 13, color: "#d4d4d8", bgcolor: "rgba(255, 255, 255, 0.05)", px: 1.5, py: 1, borderRadius: 2, border: "1px solid rgba(255, 255, 255, 0.03)" }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#1d1d1f" }}>สมยศ</Typography>
+                    <Typography sx={{ mt: 0.5, fontSize: 13, color: "#323235", bgcolor: "rgba(0, 0, 0, 0.03)", px: 1.5, py: 1, borderRadius: "8px", border: "1px solid rgba(0, 0, 0, 0.02)" }}>
                       เดี๋ยวผมเข้าพบซัพพลายเออร์ A สรุปราคาเหล็กบ่ายสองครึ่งครับ
                     </Typography>
                   </Box>
                 </Stack>
                 
                 {/* AI Summary Box inside preview */}
-                <Box sx={{ mt: 2.5, p: 2, border: "1px solid rgba(16, 185, 129, 0.25)", bgcolor: "rgba(6, 78, 59, 0.2)", borderRadius: 3 }}>
+                <Box sx={{ mt: 2.5, p: 2, border: "1px solid rgba(52, 199, 89, 0.2)", bgcolor: "rgba(52, 199, 89, 0.06)", borderRadius: "12px" }}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                    <Sparkles size={14} color="#34d399" />
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#34d399" }}>AI สรุปคำสั่งงาน</Typography>
+                    <Sparkles size={14} color="#24963e" />
+                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#24963e" }}>AI สรุปคำสั่งงาน</Typography>
                   </Stack>
-                  <Typography sx={{ mt: 0.75, fontSize: 13, color: "#e4e4e7", lineHeight: 1.6 }}>
+                  <Typography sx={{ mt: 0.75, fontSize: 13, color: "#1d1d1f", lineHeight: 1.6 }}>
                     ประชุมสรุปราคาเหล็กกับซัพพลายเออร์ A วันนี้ 14:30 น.
                   </Typography>
                 </Box>
               </Box>
             </Paper>
 
-            <Stack direction="row" spacing={4} sx={{ color: "#a1a1aa" }}>
+            <Stack direction="row" spacing={4} sx={{ color: "#6e6e73" }}>
               <Feature icon={ShieldCheck} label="Protected Session" />
               <Feature icon={MessageCircle} label="LINE Ready" />
               <Feature icon={Building2} label="Company Workspace" />
@@ -217,21 +217,21 @@ export default async function LoginPage({
               maxWidth: { xs: 460, lg: "none" },
               mx: "auto",
               p: { xs: 4, sm: 5 },
-              borderRadius: 5,
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.5)",
-              bgcolor: "rgba(17, 24, 39, 0.7)", // Glassmorphic background
+              borderRadius: "24px",
+              border: "1px solid rgba(0, 0, 0, 0.08)",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.05)",
+              bgcolor: "rgba(255, 255, 255, 0.82)", // Glassmorphic light background
               backdropFilter: "blur(20px)",
             }}
           >
             <Stack spacing={3.5}>
               <Stack direction="row" spacing={1.5} sx={{ display: { xs: "flex", lg: "none" }, alignItems: "center" }}>
-                <Avatar sx={{ width: 38, height: 38, bgcolor: "#059669", borderRadius: 2, boxShadow: "0 8px 20px rgba(5,150,105,0.3)" }}>
+                <Avatar sx={{ width: 38, height: 38, bgcolor: "#0071e3", borderRadius: "10px", boxShadow: "0 8px 20px rgba(0,113,227,0.15)" }}>
                   <LineChart size={19} />
                 </Avatar>
                 <Box>
-                  <Typography sx={{ fontWeight: 600, fontSize: 18, color: "#fff" }}>SaroopHai</Typography>
-                  <Typography sx={{ fontSize: 9, fontWeight: 500, letterSpacing: 0.8, color: "#34d399", textTransform: "uppercase" }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: 18, color: "#1d1d1f" }}>SaroopHai</Typography>
+                  <Typography sx={{ fontSize: 9, fontWeight: 500, letterSpacing: 0.8, color: "#0071e3", textTransform: "uppercase" }}>
                     LINE operations intelligence
                   </Typography>
                 </Box>
@@ -243,19 +243,19 @@ export default async function LoginPage({
                   size="small"
                   sx={{
                     height: 22,
-                    bgcolor: "rgba(16,185,129,0.1)",
-                    color: "#34d399",
-                    border: "1px solid rgba(16,185,129,0.2)",
+                    bgcolor: "rgba(0, 113, 227, 0.06)",
+                    color: "#0071e3",
+                    border: "1px solid rgba(0, 113, 227, 0.12)",
                     fontWeight: 600,
                     textTransform: "uppercase",
                     letterSpacing: 0.8,
                     fontSize: 10,
                   }}
                 />
-                <Typography component="h2" sx={{ mt: 2, fontSize: { xs: 24, sm: 28 }, fontWeight: 600, lineHeight: 1.2, color: "#fff" }}>
+                <Typography component="h2" sx={{ mt: 2, fontSize: { xs: 24, sm: 28 }, fontWeight: 600, lineHeight: 1.2, color: "#1d1d1f" }}>
                   เข้าสู่ระบบ
                 </Typography>
-                <Typography sx={{ mt: 1, color: "#a1a1aa", fontSize: 13.5, lineHeight: 1.7, fontWeight: 400 }}>
+                <Typography sx={{ mt: 1, color: "#6e6e73", fontSize: 13.5, lineHeight: 1.7, fontWeight: 400 }}>
                   หลังเข้าสู่ระบบ ระบบจะส่งคุณไปยังหน้าที่ตรงกับบทบาทของคุณโดยอัตโนมัติ
                 </Typography>
               </Box>
@@ -265,12 +265,12 @@ export default async function LoginPage({
                   severity="warning"
                   icon={<ShieldCheck size={20} />}
                   sx={{
-                    borderRadius: 3,
+                    borderRadius: "12px",
                     border: "1px solid rgba(217, 119, 6, 0.3)",
-                    bgcolor: "rgba(217, 119, 6, 0.1)",
-                    color: "#f59e0b",
-                    "& .MuiAlert-icon": { color: "#f59e0b" },
-                    "& .MuiAlert-message": { fontWeight: 500, fontSize: 13 },
+                    bgcolor: "rgba(217, 119, 6, 0.08)",
+                    color: "#d97706",
+                    "& .MuiAlert-icon": { color: "#d97706" },
+                    "& .MuiAlert-message": { fontWeight: 600, fontSize: 13 },
                   }}
                 >
                   บัญชีนี้ยังไม่มีสิทธิ์สำหรับหน้าที่ร้องขอ กรุณาติดต่อผู้ดูแลระบบ
@@ -296,17 +296,17 @@ export default async function LoginPage({
                       height: 48,
                       bgcolor: "#06C755",
                       color: "#fff",
-                      borderRadius: 2.5,
+                      borderRadius: "12px",
                       fontWeight: 600,
                       justifyContent: "space-between",
                       px: 2.5,
-                      boxShadow: "0 8px 20px rgba(6,199,85,0.15)",
+                      boxShadow: "0 8px 20px rgba(6,199,85,0.12)",
                       textTransform: "none",
                       fontSize: 14.5,
                       transition: "all 200ms ease",
                       "&:hover": {
                         bgcolor: "#05b64d",
-                        boxShadow: "0 12px 28px rgba(6,199,85,0.25)",
+                        boxShadow: "0 12px 28px rgba(6,199,85,0.22)",
                         transform: "translateY(-1px)",
                       },
                       "& .MuiButton-startIcon": { mr: 1 },
@@ -333,10 +333,10 @@ export default async function LoginPage({
                     endIcon={<ArrowRight size={18} />}
                     sx={{
                       height: 48,
-                      borderRadius: 2.5,
-                      color: "#e4e4e7",
-                      borderColor: "rgba(255, 255, 255, 0.1)",
-                      bgcolor: "rgba(255, 255, 255, 0.03)",
+                      borderRadius: "12px",
+                      color: "#1d1d1f",
+                      borderColor: "rgba(0, 0, 0, 0.12)",
+                      bgcolor: "rgba(255, 255, 255, 0.72)",
                       fontWeight: 600,
                       justifyContent: "space-between",
                       px: 2.5,
@@ -344,12 +344,12 @@ export default async function LoginPage({
                       fontSize: 14.5,
                       transition: "all 200ms ease",
                       "&:hover": {
-                        borderColor: "rgba(255, 255, 255, 0.2)",
-                        bgcolor: "rgba(255, 255, 255, 0.08)",
+                        borderColor: "rgba(0, 0, 0, 0.2)",
+                        bgcolor: "rgba(0, 0, 0, 0.03)",
                         transform: "translateY(-1px)",
                       },
                       "& .MuiButton-startIcon": { mr: 1 },
-                      "& .MuiButton-endIcon": { ml: "auto", color: "#a1a1aa" },
+                      "& .MuiButton-endIcon": { ml: "auto", color: "#86868b" },
                     }}
                   >
                     Continue with Google
@@ -357,9 +357,9 @@ export default async function LoginPage({
                 </Box>
               </Stack>
 
-              <Divider sx={{ borderColor: "rgba(255, 255, 255, 0.06)" }} />
+              <Divider sx={{ borderColor: "rgba(0, 0, 0, 0.08)" }} />
 
-              <Stack direction="row" spacing={1} sx={{ justifyContent: "center", alignItems: "center", color: "#71717a" }}>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "center", alignItems: "center", color: "#86868b" }}>
                 <LockKeyhole size={14} />
                 <Typography sx={{ fontSize: 11.5, fontWeight: 500, letterSpacing: 0.5 }}>Secure Session Encrypted</Typography>
               </Stack>
@@ -374,8 +374,8 @@ export default async function LoginPage({
 function Feature({ icon: Icon, label }: { icon: React.ComponentType<{ size?: number; color?: string }>; label: string }) {
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-      <Icon size={15} color="#34d399" />
-      <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#d4d4d8" }}>{label}</Typography>
+      <Icon size={15} color="#0071e3" />
+      <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#6e6e73" }}>{label}</Typography>
     </Stack>
   );
 }

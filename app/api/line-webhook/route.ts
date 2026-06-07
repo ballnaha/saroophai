@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import prisma from "@/lib/prisma";
 import { logToSystem } from "@/lib/logger";
 import { getLineChannelSecret, getLineAccessToken } from "@/lib/settings";
@@ -59,8 +61,14 @@ type LineWebhookEvent = {
     userId?: string;
   };
   message?: {
+    id?: string;
     type?: string;
     text?: string;
+    contentProvider?: {
+      type?: string;
+      originalContentUrl?: string;
+      previewImageUrl?: string;
+    };
   };
 };
 
@@ -126,9 +134,10 @@ async function fetchMembersCount(groupId: string, accessToken: string): Promise<
   return 2;
 }
 
-async function fetchMemberName(groupId: string, userId: string, accessToken: string): Promise<string> {
+async function fetchMemberProfile(groupId: string, userId: string, accessToken: string): Promise<{ displayName: string; pictureUrl?: string }> {
+  const fallbackName = `User_${userId.slice(-4)}`;
   if (!accessToken || accessToken === "YOUR_LINE_CHANNEL_ACCESS_TOKEN_HERE" || accessToken.trim() === "") {
-    return `User_${userId.slice(-4)}`;
+    return { displayName: fallbackName };
   }
   try {
     const res = await fetch(`https://api.line.me/v2/bot/group/${groupId}/member/${userId}`, {
@@ -138,14 +147,83 @@ async function fetchMemberName(groupId: string, userId: string, accessToken: str
     });
     if (res.ok) {
       const data = await res.json();
-      return data.displayName || `User_${userId.slice(-4)}`;
+      return {
+        displayName: data.displayName || fallbackName,
+        pictureUrl: typeof data.pictureUrl === "string" ? data.pictureUrl : undefined,
+      };
     } else {
       console.warn(`Failed to fetch member profile. Status: ${res.status}`);
     }
   } catch (error) {
     console.error("Error fetching group member:", error);
   }
-  return `User_${userId.slice(-4)}`;
+  return { displayName: fallbackName };
+}
+
+function extensionFromContentType(contentType: string | null): string {
+  if (!contentType) return "jpg";
+  const ct = contentType.toLowerCase();
+  if (ct.includes("png")) return "png";
+  if (ct.includes("gif")) return "gif";
+  if (ct.includes("webp")) return "webp";
+  if (ct.includes("jpeg") || ct.includes("jpg")) return "jpg";
+  if (ct.includes("mp4")) return "mp4";
+  if (ct.includes("quicktime") || ct.includes("mov")) return "mov";
+  if (ct.includes("webm")) return "webm";
+  if (ct.includes("mpeg")) return "mpeg";
+  return "bin";
+}
+
+function safePathSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+async function saveLineMessageContent({
+  accessToken,
+  groupId,
+  messageId,
+}: {
+  accessToken: string;
+  groupId: string;
+  messageId: string;
+}): Promise<{ filePath: string; mimeType?: string; fileSize?: number } | null> {
+  if (!accessToken || accessToken === "YOUR_LINE_CHANNEL_ACCESS_TOKEN_HERE" || accessToken.trim() === "") {
+    return null;
+  }
+
+  try {
+    const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+      headers: {
+        Authorization: `Bearer ${accessToken.trim()}`,
+      },
+    });
+
+    if (!res.ok) {
+      console.warn(`Failed to fetch LINE content. Status: ${res.status}`);
+      return null;
+    }
+
+    const contentType = res.headers.get("content-type");
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const extension = extensionFromContentType(contentType);
+    const safeGroupId = safePathSegment(groupId);
+    const safeMessageId = safePathSegment(messageId);
+    const relativePath = `/uploads/line/${safeGroupId}/${safeMessageId}.${extension}`;
+    const outputDir = path.join(process.cwd(), "public", "uploads", "line", safeGroupId);
+    const outputPath = path.join(outputDir, `${safeMessageId}.${extension}`);
+
+    await mkdir(outputDir, { recursive: true });
+    await writeFile(outputPath, bytes);
+
+    return {
+      filePath: relativePath,
+      mimeType: contentType || undefined,
+      fileSize: bytes.length,
+    };
+  } catch (error) {
+    console.error("Error saving LINE message content:", error);
+    return null;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -217,6 +295,10 @@ export async function POST(request: NextRequest) {
 
         if (!groupId) continue;
 
+        const messageId = event.message?.id;
+        const messageType = event.message?.type || "unknown";
+        const contentProvider = event.message?.contentProvider;
+
         // Determine message text representation
         let messageText = "";
         if (event.message?.type === "text") {
@@ -253,10 +335,11 @@ export async function POST(request: NextRequest) {
         });
         const hourIdx = parseInt(hourString, 10);
 
-        // Fetch user display name
-        const senderName = userId 
-          ? await fetchMemberName(groupId, userId, accessToken) 
-          : "System";
+        // Fetch user display name and profile image
+        const senderProfile = userId
+          ? await fetchMemberProfile(groupId, userId, accessToken)
+          : { displayName: "System" };
+        const senderName = senderProfile.displayName;
 
         // Query group from DB
         const dbGroup = await prisma.lineGroup.findUnique({
@@ -309,6 +392,7 @@ export async function POST(request: NextRequest) {
               membersCount,
               syncStatus: "idle",
               lastSynced: "ยังไม่เคยซิงค์ข้อมูลวันนี้",
+              lastSyncedAt: null,
               rawChat: updatedRawChat,
               hourlyActivity: updatedHourlyActivity,
               messagesToday: 1,
@@ -317,6 +401,44 @@ export async function POST(request: NextRequest) {
               sentiment: "Neutral",
               sentimentScore: 50,
             }
+          });
+        }
+
+        if ((messageType === "image" || messageType === "video") && messageId) {
+          const savedFile =
+            contentProvider?.type === "external"
+              ? null
+              : await saveLineMessageContent({ accessToken, groupId, messageId });
+
+          await prisma.lineMessageAttachment.upsert({
+            where: { id: messageId },
+            update: {
+              groupId,
+              userId,
+              senderName,
+              messageType,
+              contentProviderType: contentProvider?.type,
+              filePath: savedFile?.filePath,
+              originalContentUrl: contentProvider?.originalContentUrl,
+              previewImageUrl: contentProvider?.previewImageUrl,
+              mimeType: savedFile?.mimeType,
+              fileSize: savedFile?.fileSize,
+              messageTimestamp: date,
+            },
+            create: {
+              id: messageId,
+              groupId,
+              userId,
+              senderName,
+              messageType,
+              contentProviderType: contentProvider?.type,
+              filePath: savedFile?.filePath,
+              originalContentUrl: contentProvider?.originalContentUrl,
+              previewImageUrl: contentProvider?.previewImageUrl,
+              mimeType: savedFile?.mimeType,
+              fileSize: savedFile?.fileSize,
+              messageTimestamp: date,
+            },
           });
         }
 
@@ -333,7 +455,8 @@ export async function POST(request: NextRequest) {
             await prisma.contributor.update({
               where: { id: contributor.id },
               data: {
-                messagesCount: { increment: 1 }
+                messagesCount: { increment: 1 },
+                ...(senderProfile.pictureUrl ? { profileImageUrl: senderProfile.pictureUrl } : {}),
               }
             });
           } else {
@@ -343,7 +466,8 @@ export async function POST(request: NextRequest) {
                 groupId,
                 name: senderName,
                 messagesCount: 1,
-                avatarColor: senderColor
+                avatarColor: senderColor,
+                profileImageUrl: senderProfile.pictureUrl,
               }
             });
           }

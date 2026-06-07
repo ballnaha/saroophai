@@ -20,6 +20,7 @@ import {
   getSystemLogs,
   getSystemStatus,
   saveSystemSettings,
+  testApiConnections,
   triggerDailySummaryJob,
 } from "@/app/actions/status";
 import {
@@ -65,6 +66,17 @@ type ConfigItem = {
   name: string;
   isConfigured: boolean;
   description?: string;
+};
+type ApiCheckResult = {
+  ok: boolean;
+  label: string;
+  message: string;
+  details?: string;
+};
+type ApiCheckResponse = {
+  success: boolean;
+  checkedAt: string;
+  results: Record<string, ApiCheckResult>;
 };
 type SystemStatus = {
   dbConnected: boolean;
@@ -112,6 +124,8 @@ export function SystemStatusDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isTestingApis, setIsTestingApis] = useState(false);
+  const [apiCheck, setApiCheck] = useState<ApiCheckResponse | null>(null);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
@@ -204,6 +218,24 @@ export function SystemStatusDashboard() {
       toast.error(`รัน Daily Summary ไม่สำเร็จ: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsActionLoading(false);
+    }
+  };
+
+  const handleTestApis = async () => {
+    setIsTestingApis(true);
+    try {
+      const res = await testApiConnections();
+      setApiCheck(res);
+      if (res.success) {
+        toast.success("API connection test passed");
+      } else {
+        toast.warning("API connection test completed with issues");
+      }
+      await loadData();
+    } catch (err: unknown) {
+      toast.error(`API connection test failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsTestingApis(false);
     }
   };
 
@@ -303,11 +335,25 @@ export function SystemStatusDashboard() {
                       <Button type="submit" variant="contained" disabled={isSavingConfig || (!geminiApiKeyInput && !lineChannelSecretInput && !lineChannelAccessTokenInput)} startIcon={isSavingConfig ? <RefreshCw size={17} className="app-spin" /> : <Play size={17} />} sx={{ minHeight: 44, borderRadius: 2.5, bgcolor: "#059669", fontWeight: 600, textTransform: "none", "&:hover": { bgcolor: "#047857" } }}>
                         Save Config
                       </Button>
+                      <Button type="button" onClick={handleTestApis} variant="outlined" disabled={isTestingApis || isSavingConfig} startIcon={<RefreshCw size={17} className={isTestingApis ? "app-spin" : ""} />} sx={{ minHeight: 44, borderRadius: 2.5, borderColor: "#d4d4d8", color: "#27272a", fontWeight: 600, textTransform: "none" }}>
+                        Test API Connections
+                      </Button>
                     </Stack>
                   </Paper>
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
                   <Stack spacing={3}>
+                    {apiCheck && (
+                      <Paper elevation={0} sx={{ p: 3, border: `1px solid ${apiCheck.success ? "#a7f3d0" : "#fde68a"}`, borderRadius: 4, bgcolor: apiCheck.success ? "#f0fdf4" : "#fffbeb" }}>
+                        <Stack direction="row" sx={{ alignItems: "baseline", justifyContent: "space-between", gap: 2 }}>
+                          <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, color: "#71717a", textTransform: "uppercase" }}>Latest API Test</Typography>
+                          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#71717a" }}>{new Date(apiCheck.checkedAt).toLocaleString("th-TH")}</Typography>
+                        </Stack>
+                        <Stack spacing={1.5} sx={{ mt: 2 }}>
+                          {Object.entries(apiCheck.results).map(([key, result]) => <ApiCheckRow key={key} result={result} />)}
+                        </Stack>
+                      </Paper>
+                    )}
                     <Paper elevation={0} sx={{ p: 3, border: "1px solid #e4e4e7", borderRadius: 4 }}>
                       <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, color: "#a1a1aa", textTransform: "uppercase" }}>System Readiness</Typography>
                       <Stack direction="row" sx={{ mt: 1.5, alignItems: "baseline", justifyContent: "space-between" }}>
@@ -444,6 +490,23 @@ function ConfigRow({ item }: { item: ConfigItem }) {
       <Typography noWrap sx={{ fontFamily: "var(--font-geist-mono)", fontSize: 12, fontWeight: 600 }}>{item.name}</Typography>
       <Chip size="small" label={item.isConfigured ? "พร้อม" : "ยังไม่ตั้งค่า"} sx={{ bgcolor: item.isConfigured ? "#ecfdf5" : "#fff1f2", color: item.isConfigured ? "#047857" : "#e11d48", border: `1px solid ${item.isConfigured ? "#a7f3d0" : "#fecdd3"}`, fontWeight: 600, fontSize: 10 }} />
     </Stack>
+  );
+}
+
+function ApiCheckRow({ result }: { result: ApiCheckResult }) {
+  return (
+    <Box sx={{ p: 1.5, border: `1px solid ${result.ok ? "#a7f3d0" : "#fed7aa"}`, borderRadius: 2.5, bgcolor: "#fff" }}>
+      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 1.5 }}>
+        <Typography noWrap sx={{ fontFamily: "var(--font-geist-mono)", fontSize: 12, fontWeight: 700 }}>{result.label}</Typography>
+        <Chip size="small" label={result.ok ? "OK" : "Issue"} sx={{ flexShrink: 0, bgcolor: result.ok ? "#ecfdf5" : "#fff7ed", color: result.ok ? "#047857" : "#c2410c", border: `1px solid ${result.ok ? "#a7f3d0" : "#fed7aa"}`, fontWeight: 700, fontSize: 10 }} />
+      </Stack>
+      <Typography sx={{ mt: 0.75, fontSize: 12.5, lineHeight: 1.6, fontWeight: 500, color: "#52525b" }}>{result.message}</Typography>
+      {result.details && (
+        <Typography sx={{ mt: 0.75, fontFamily: "var(--font-geist-mono)", fontSize: 11, lineHeight: 1.6, color: "#71717a", wordBreak: "break-word" }}>
+          {result.details}
+        </Typography>
+      )}
+    </Box>
   );
 }
 

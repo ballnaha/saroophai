@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
-import { LineGroup } from "../lib/MockData";
+import { LineGroup, Topic } from "../lib/MockData";
+import { toast } from "sonner";
 import {
   Alert,
   Avatar,
@@ -18,7 +19,18 @@ import {
   Drawer,
   IconButton,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Autocomplete,
 } from "@mui/material";
+import dayjs, { Dayjs } from "dayjs";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import {
   Award,
   BarChart2,
@@ -38,12 +50,21 @@ import {
   User,
   X,
   MessageSquare,
+  Edit2,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 interface SummaryDashboardProps {
   group: LineGroup;
   onSync: (groupId: string) => void;
   onToggleActionItem: (groupId: string, itemId: string) => void;
+  onCreateActionItem: (groupId: string, data: { task: string; assignee: string; dueDate?: string }) => Promise<void>;
+  onUpdateActionItem: (itemId: string, data: { task: string; assignee: string; dueDate?: string }) => Promise<void>;
+  onDeleteActionItem: (groupId: string, itemId: string) => Promise<void>;
+  onCreateTopic: (groupId: string, data: { name: string; category: string; relevance: number; keyPoints: string[] }) => Promise<void>;
+  onUpdateTopic: (topicId: number, data: { name: string; category: string; relevance: number; keyPoints: string[] }) => Promise<void>;
+  onDeleteTopic: (groupId: string, topicId: number) => Promise<void>;
 }
 
 type TabType = "summary" | "actions" | "topics";
@@ -93,6 +114,12 @@ export function SummaryDashboard({
   group,
   onSync,
   onToggleActionItem,
+  onCreateActionItem,
+  onUpdateActionItem,
+  onDeleteActionItem,
+  onCreateTopic,
+  onUpdateTopic,
+  onDeleteTopic,
 }: SummaryDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>("summary");
   const [selectedContributor, setSelectedContributor] = useState<string | null>(null);
@@ -346,9 +373,19 @@ export function SummaryDashboard({
                         group={group}
                         pendingActionsCount={pendingActionsCount}
                         onToggleActionItem={onToggleActionItem}
+                        onCreateActionItem={onCreateActionItem}
+                        onUpdateActionItem={onUpdateActionItem}
+                        onDeleteActionItem={onDeleteActionItem}
                       />
                     )}
-                    {activeTab === "topics" && <TopicsTab group={group} />}
+                    {activeTab === "topics" && (
+                      <TopicsTab
+                        group={group}
+                        onCreateTopic={onCreateTopic}
+                        onUpdateTopic={onUpdateTopic}
+                        onDeleteTopic={onDeleteTopic}
+                      />
+                    )}
                   </Box>
                 </Paper>
               </Box>
@@ -860,36 +897,644 @@ function TimelineItem({
   );
 }
 
+function getInitials(name: string) {
+  return name.trim().charAt(0).toUpperCase() || "?";
+}
+
+function getAvatarColor(name: string) {
+  const hash = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = [
+    "#0071e3", // Apple Blue
+    "#34c759", // Apple Green
+    "#ff9500", // Apple Orange
+    "#ff3b30", // Apple Red
+    "#af52de", // Apple Purple
+    "#5856d6", // Indigo
+    "#ff2d55", // Pink
+    "#5ac8fa", // Sky Blue
+  ];
+  return colors[hash % colors.length];
+}
+
+function formatThaiDateTime(dateVal: Dayjs | null, timeVal: Dayjs | null): string {
+  if (!dateVal) return "";
+  const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.ม."];
+  // Wait, let's fix thMonths elements to match exact spelling "มิ.ย."
+  const thMonthsCorrect = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const day = dateVal.date();
+  const month = thMonthsCorrect[dateVal.month()];
+  const year = dateVal.year() + 543; // Buddhist Era
+  
+  let result = `${day} ${month} ${year}`;
+  if (timeVal) {
+    result += `, ${timeVal.format("HH:mm")}`;
+  }
+  return result;
+}
+
+function parseThaiDateTime(str: string | undefined): { date: Dayjs | null; time: Dayjs | null } {
+  if (!str) return { date: null, time: null };
+  try {
+    const parts = str.split(",");
+    const datePart = parts[0].trim();
+    const timePart = parts[1] ? parts[1].trim() : null;
+
+    let parsedDate: Dayjs | null = null;
+    let parsedTime: Dayjs | null = null;
+
+    if (datePart === "วันนี้") {
+      parsedDate = dayjs();
+    } else if (datePart === "พรุ่งนี้") {
+      parsedDate = dayjs().add(1, "day");
+    } else if (datePart === "เมื่อวาน" || datePart === "เมื่อวานนี้") {
+      parsedDate = dayjs().subtract(1, "day");
+    } else {
+      const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+      const match = datePart.match(/^(\d+)\s+([^\s]+)\s+(\d+)$/);
+      if (match) {
+        const day = parseInt(match[1], 10);
+        const monthIndex = thMonths.indexOf(match[2]);
+        const yearBE = parseInt(match[3], 10);
+        const yearCE = yearBE - 543;
+        if (monthIndex !== -1) {
+          parsedDate = dayjs(new Date(yearCE, monthIndex, day));
+        }
+      }
+    }
+
+    if (timePart) {
+      const timeMatch = timePart.match(/^(\d{2}):(\d{2})/);
+      if (timeMatch) {
+        const hrs = parseInt(timeMatch[1], 10);
+        const mins = parseInt(timeMatch[2], 10);
+        parsedTime = dayjs().hour(hrs).minute(mins);
+      }
+    }
+
+    if (!parsedDate && datePart) {
+      const d = dayjs(datePart);
+      if (d.isValid()) parsedDate = d;
+    }
+
+    return { date: parsedDate, time: parsedTime };
+  } catch (e) {
+    console.error("Failed to parse Thai date time", e);
+    return { date: null, time: null };
+  }
+}
+
+interface TaskDialogProps {
+  open: boolean;
+  title: string;
+  contributors: { name: string; messagesCount: number; avatarColor?: string; profileImageUrl?: string }[];
+  initialValues?: { task: string; assignee: string; dueDate?: string };
+  onClose: () => void;
+  onSave: (data: { task: string; assignee: string; dueDate?: string }) => void;
+}
+
+function TaskDialog({ open, title, contributors, initialValues, onClose, onSave }: TaskDialogProps) {
+  const [task, setTask] = useState("");
+  const [assigneesList, setAssigneesList] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
+  const [selectedTime, setSelectedTime] = useState<Dayjs | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setTask(initialValues?.task || "");
+      setAssigneesList(
+        initialValues?.assignee
+          ? initialValues.assignee.split(",").map(n => n.trim()).filter(Boolean)
+          : []
+      );
+      const { date, time } = parseThaiDateTime(initialValues?.dueDate);
+      setSelectedDate(date);
+      setSelectedTime(time);
+    }
+  }, [open, initialValues]);
+
+  const handleSave = () => {
+    if (!task.trim()) {
+      toast.error("กรุณากรอกหัวข้องาน");
+      return;
+    }
+    if (assigneesList.length === 0) {
+      toast.error("กรุณาเลือกผู้รับผิดชอบ");
+      return;
+    }
+    
+    const assigneeStr = assigneesList.join(", ");
+    const formattedDueDate = formatThaiDateTime(selectedDate, selectedTime);
+    
+    onSave({ 
+      task: task.trim(), 
+      assignee: assigneeStr, 
+      dueDate: formattedDueDate || undefined 
+    });
+  };
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth 
+      slotProps={{ 
+        paper: { 
+          sx: { 
+            borderRadius: 4, 
+            p: 1.5,
+            bgcolor: "#ffffff",
+            border: "1px solid rgba(0,0,0,0.08)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.15)"
+          } 
+        } 
+      }}
+    >
+      <DialogTitle sx={{ fontWeight: 700, fontSize: 16, pb: 1, color: "#1d1d1f" }}>
+        {title}
+      </DialogTitle>
+      
+      <DialogContent sx={{ pb: 2 }}>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          {/* Task Field (Textarea) */}
+          <Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73", mb: 0.75 }}>
+              หัวข้องานที่ต้องทำ <Box component="span" sx={{ color: "#ff3b30" }}>*</Box>
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              multiline
+              rows={3}
+              placeholder="ระบุรายละเอียดงานหรือสิ่งที่ต้องทำ..."
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2.5,
+                  bgcolor: "rgba(255,255,255,0.72)",
+                  color: "#1d1d1f",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  p: 1.5,
+                  "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                  "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                  "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                },
+              }}
+            />
+          </Box>
+
+          {/* Assignees Field (Autocomplete Multi-tag with Avatar) */}
+          <Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73", mb: 0.75 }}>
+              ผู้รับผิดชอบ <Box component="span" sx={{ color: "#ff3b30" }}>*</Box>
+            </Typography>
+            <Autocomplete
+              multiple
+              freeSolo
+              options={contributors.map(c => c.name)}
+              value={assigneesList}
+              onChange={(_, newValue) => setAssigneesList(newValue)}
+              slotProps={{
+                paper: {
+                  sx: {
+                    bgcolor: "#ffffff",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
+                    border: "1px solid rgba(0,0,0,0.08)"
+                  }
+                }
+              }}
+              renderOption={(props, option) => {
+                const { key, ...optionProps } = props;
+                const matched = contributors.find(c => c.name.toLowerCase() === option.toLowerCase());
+                const avatarSrc = matched?.profileImageUrl || undefined;
+                const bgColor = matched?.avatarColor || getAvatarColor(option);
+                
+                return (
+                  <Box 
+                    component="li" 
+                    key={key} 
+                    {...optionProps} 
+                    sx={{ 
+                      gap: 1.5, 
+                      p: "8px 16px !important", 
+                      fontSize: 13, 
+                      display: "flex", 
+                      alignItems: "center" 
+                    }}
+                  >
+                    <Avatar 
+                      src={avatarSrc}
+                      sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: 1.5,
+                        bgcolor: avatarSrc ? "transparent" : bgColor, 
+                        color: "#fff", 
+                        fontSize: 9, 
+                        fontWeight: 700 
+                      }}
+                    >
+                      {!avatarSrc && getInitials(option)}
+                    </Avatar>
+                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{option}</Typography>
+                  </Box>
+                );
+              }}
+              renderValue={(value: string[], getItemProps) =>
+                value.map((option: string, index: number) => {
+                  const { key, ...tagProps } = getItemProps({ index });
+                  const matched = contributors.find(c => c.name.toLowerCase() === option.toLowerCase());
+                  const avatarSrc = matched?.profileImageUrl || undefined;
+                  const bgColor = matched?.avatarColor || getAvatarColor(option);
+                  
+                  return (
+                    <Chip
+                      key={key}
+                      variant="outlined"
+                      label={option}
+                      avatar={
+                        <Avatar 
+                          src={avatarSrc}
+                          sx={{ 
+                            bgcolor: avatarSrc ? "transparent" : bgColor, 
+                            color: "#fff", 
+                            fontSize: 9, 
+                            fontWeight: 700 
+                          }}
+                        >
+                          {!avatarSrc && getInitials(option)}
+                        </Avatar>
+                      }
+                      {...tagProps}
+                      sx={{ borderRadius: 1.5, height: 26, fontSize: 12 }}
+                    />
+                  );
+                })
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="เลือกหรือพิมพ์ชื่อผู้รับผิดชอบ..."
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2.5,
+                      bgcolor: "rgba(255,255,255,0.72)",
+                      color: "#1d1d1f",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      p: "4px 8px !important",
+                      "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                      "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                      "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                    },
+                  }}
+                />
+              )}
+            />
+          </Box>
+
+          {/* Date Picker + Time Picker side by side */}
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <Stack direction="row" spacing={2}>
+              <Box sx={{ flex: 1 }}>
+                <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73" }}>
+                    วันที่กำหนดส่ง (ไม่บังคับ)
+                  </Typography>
+                  {selectedDate && (
+                    <Button
+                      onClick={() => setSelectedDate(null)}
+                      sx={{
+                        p: 0,
+                        minWidth: 0,
+                        height: "auto",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#ff3b30",
+                        textTransform: "none",
+                        "&:hover": { bgcolor: "transparent", color: "#d9261c" }
+                      }}
+                    >
+                      ล้างค่า
+                    </Button>
+                  )}
+                </Stack>
+                <DatePicker
+                  value={selectedDate}
+                  onChange={(newValue) => setSelectedDate(newValue)}
+                  slotProps={{
+                    popper: {
+                      sx: {
+                        "& .MuiPaper-root": {
+                          bgcolor: "#ffffff !important",
+                          boxShadow: "0 10px 40px rgba(0,0,0,0.12) !important",
+                          border: "1px solid rgba(0,0,0,0.08) !important",
+                        }
+                      }
+                    },
+                    textField: {
+                      size: "small",
+                      fullWidth: true,
+                      sx: {
+                        "& .MuiOutlinedInput-root": {
+                          height: 38,
+                          borderRadius: 2.5,
+                          bgcolor: "rgba(255,255,255,0.72)",
+                          color: "#1d1d1f",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                          "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                          "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                        },
+                      },
+                    },
+                  }}
+                />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73" }}>
+                    เวลาส่ง (ไม่บังคับ)
+                  </Typography>
+                  {selectedTime && (
+                    <Button
+                      onClick={() => setSelectedTime(null)}
+                      sx={{
+                        p: 0,
+                        minWidth: 0,
+                        height: "auto",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#ff3b30",
+                        textTransform: "none",
+                        "&:hover": { bgcolor: "transparent", color: "#d9261c" }
+                      }}
+                    >
+                      ล้างค่า
+                    </Button>
+                  )}
+                </Stack>
+                <TimePicker
+                  value={selectedTime}
+                  onChange={(newValue) => setSelectedTime(newValue)}
+                  ampm={false}
+                  slotProps={{
+                    popper: {
+                      sx: {
+                        "& .MuiPaper-root": {
+                          bgcolor: "#ffffff !important",
+                          boxShadow: "0 10px 40px rgba(0,0,0,0.12) !important",
+                          border: "1px solid rgba(0,0,0,0.08) !important",
+                        }
+                      }
+                    },
+                    textField: {
+                      size: "small",
+                      fullWidth: true,
+                      sx: {
+                        "& .MuiOutlinedInput-root": {
+                          height: 38,
+                          borderRadius: 2.5,
+                          bgcolor: "rgba(255,255,255,0.72)",
+                          color: "#1d1d1f",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                          "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                          "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                        },
+                      },
+                    },
+                  }}
+                />
+              </Box>
+            </Stack>
+          </LocalizationProvider>
+        </Stack>
+      </DialogContent>
+      
+      <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1.5 }}>
+        <Button 
+          onClick={onClose} 
+          variant="outlined" 
+          sx={{ 
+            flex: 1,
+            height: 36,
+            borderRadius: 2.5, 
+            borderColor: "rgba(0,0,0,0.12)",
+            color: "#1d1d1f", 
+            fontWeight: 600,
+            fontSize: 13,
+            textTransform: "none", 
+            bgcolor: "rgba(255,255,255,0.6)",
+            "&:hover": { 
+              borderColor: "rgba(0,0,0,0.24)", 
+              bgcolor: "rgba(0,0,0,0.03)" 
+            } 
+          }}
+        >
+          ยกเลิก
+        </Button>
+        <Button 
+          onClick={handleSave} 
+          variant="contained" 
+          sx={{ 
+            flex: 1,
+            height: 36,
+            borderRadius: 2.5, 
+            bgcolor: "#0071e3", 
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: 13,
+            textTransform: "none", 
+            boxShadow: "none",
+            "&:hover": { 
+              bgcolor: "#005bb5", 
+              boxShadow: "none" 
+            } 
+          }}
+        >
+          บันทึก
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 function ActionsTab({
   group,
   pendingActionsCount,
   onToggleActionItem,
+  onCreateActionItem,
+  onUpdateActionItem,
+  onDeleteActionItem,
 }: {
   group: LineGroup;
   pendingActionsCount: number;
   onToggleActionItem: (groupId: string, itemId: string) => void;
+  onCreateActionItem: (groupId: string, data: { task: string; assignee: string; dueDate?: string }) => Promise<void>;
+  onUpdateActionItem: (itemId: string, data: { task: string; assignee: string; dueDate?: string }) => Promise<void>;
+  onDeleteActionItem: (groupId: string, itemId: string) => Promise<void>;
 }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "update">("create");
+  const [selectedItem, setSelectedItem] = useState<{ id: string; task: string; assignee: string; dueDate?: string } | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemIdToDelete, setItemIdToDelete] = useState<string | null>(null);
+
+  const handleOpenCreate = () => {
+    setDialogMode("create");
+    setSelectedItem(null);
+    setDialogOpen(true);
+  };
+
+  const handleOpenEdit = (item: { id: string; task: string; assignee: string; dueDate?: string }) => {
+    setDialogMode("update");
+    setSelectedItem(item);
+    setDialogOpen(true);
+  };
+
+  const handleSave = async (data: { task: string; assignee: string; dueDate?: string }) => {
+    setDialogOpen(false);
+    if (dialogMode === "create") {
+      await onCreateActionItem(group.id, data);
+    } else if (dialogMode === "update" && selectedItem) {
+      await onUpdateActionItem(selectedItem.id, data);
+    }
+  };
+
+  const handleDelete = (itemId: string) => {
+    setItemIdToDelete(itemId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (itemIdToDelete) {
+      await onDeleteActionItem(group.id, itemIdToDelete);
+    }
+    setDeleteConfirmOpen(false);
+    setItemIdToDelete(null);
+  };
+
   return (
     <Stack spacing={2.5}>
-      <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 1.5, pb: 1.5, borderBottom: "1px solid #e4e4e7" }}>
+      <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", alignItems: { sm: "center" }, gap: 1.5, pb: 1.5, borderBottom: "1px solid #e4e4e7" }}>
         <Typography sx={{ fontSize: 11.5, fontWeight: 500, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: 0.8 }}>ทำเครื่องหมายหน้างานเมื่อทำงานเสร็จสิ้น</Typography>
-        <Chip size="small" label={`งานที่ค้าง: ${pendingActionsCount}`} sx={{ alignSelf: { xs: "flex-start", sm: "center" }, bgcolor: "#f4f4f5", fontWeight: 600 }} />
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", alignSelf: { xs: "flex-start", sm: "center" } }}>
+          <Chip size="small" label={`งานที่ค้าง: ${pendingActionsCount}`} sx={{ bgcolor: "#f4f4f5", fontWeight: 600 }} />
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<Plus size={14} />}
+            onClick={handleOpenCreate}
+            sx={{
+              height: 28,
+              borderRadius: 2,
+              bgcolor: "#0071e3",
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: "none",
+              boxShadow: "none",
+              "&:hover": { bgcolor: "#005bb5", boxShadow: "none" }
+            }}
+          >
+            เพิ่มงาน
+          </Button>
+        </Stack>
       </Stack>
 
       <Stack spacing={1.5} sx={{ maxHeight: 390, overflowY: "auto", pr: 0.5 }}>
         {group.actionItems.map((item) => {
           const completed = item.status === "completed";
           return (
-            <Paper key={item.id} elevation={0} sx={{ p: 2, border: "1px solid #e4e4e7", borderRadius: 2.5, bgcolor: completed ? "#fafafa" : "#fff", opacity: completed ? 0.68 : 1 }}>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: "flex-start" }}>
-                <Checkbox checked={completed} onChange={() => onToggleActionItem(group.id, item.id)} sx={{ p: 0.25, color: "#d4d4d8", "&.Mui-checked": { color: "#059669" } }} />
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography sx={{ fontSize: 14, lineHeight: 1.75, fontWeight: 500, color: completed ? "#a1a1aa" : "#27272a", textDecoration: completed ? "line-through" : "none" }}>{item.task}</Typography>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1, mt: 1.5 }}>
-                    <Chip size="small" icon={<User size={12} />} label={`ผู้รับผิดชอบ: ${item.assignee}`} sx={{ bgcolor: "#f4f4f5", fontWeight: 500, fontSize: 11 }} />
-                    {item.dueDate && <Chip size="small" icon={<Clock size={12} />} label={`กำหนดส่ง: ${item.dueDate}`} sx={{ bgcolor: "#fafafa", fontWeight: 500, fontSize: 11 }} />}
-                  </Stack>
-                </Box>
+            <Paper
+              key={item.id}
+              elevation={0}
+              sx={{
+                p: 2,
+                border: "1px solid #e4e4e7",
+                borderRadius: 2.5,
+                bgcolor: completed ? "#fafafa" : "#fff",
+                opacity: completed ? 0.68 : 1,
+                position: "relative",
+                "&:hover .action-buttons": { opacity: 1 },
+              }}
+            >
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: "flex-start", flex: 1, minWidth: 0 }}>
+                  <Checkbox checked={completed} onChange={() => onToggleActionItem(group.id, item.id)} sx={{ p: 0.25, color: "#d4d4d8", "&.Mui-checked": { color: "#059669" } }} />
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography sx={{ fontSize: 14, lineHeight: 1.75, fontWeight: 500, color: completed ? "#a1a1aa" : "#27272a", textDecoration: completed ? "line-through" : "none", wordBreak: "break-word" }}>{item.task}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1, mt: 1.5 }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#6e6e73", mr: 0.5 }}>ผู้รับผิดชอบ:</Typography>
+                      {item.assignee.split(",").map(name => name.trim()).filter(Boolean).map((name, idx) => {
+                        const matched = group.contributors.find(c => c.name.toLowerCase() === name.toLowerCase());
+                        const avatarSrc = matched?.profileImageUrl || undefined;
+                        const bgColor = matched?.avatarColor || getAvatarColor(name);
+                        
+                        return (
+                          <Chip
+                            key={idx}
+                            size="small"
+                            avatar={
+                              <Avatar 
+                                src={avatarSrc}
+                                sx={{ 
+                                  bgcolor: avatarSrc ? "transparent" : bgColor, 
+                                  color: "#fff", 
+                                  fontSize: 9, 
+                                  fontWeight: 700 
+                                }}
+                              >
+                                {!avatarSrc && getInitials(name)}
+                              </Avatar>
+                            }
+                            label={name}
+                            sx={{ bgcolor: "#f4f4f5", fontWeight: 500, fontSize: 11, border: "1px solid rgba(0,0,0,0.04)" }}
+                          />
+                        );
+                      })}
+                      {item.dueDate && (
+                        <Chip
+                          size="small"
+                          icon={<Clock size={12} />}
+                          label={`กำหนดส่ง: ${item.dueDate}`}
+                          sx={{ bgcolor: "#fafafa", fontWeight: 500, fontSize: 11, border: "1px solid rgba(0,0,0,0.04)", ml: "auto" }}
+                        />
+                      )}
+                    </Stack>
+                  </Box>
+                </Stack>
+
+                <Stack
+                  direction="row"
+                  className="action-buttons"
+                  spacing={0.5}
+                  sx={{
+                    opacity: 0,
+                    transition: "opacity 150ms ease",
+                    ml: 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  <IconButton
+                    size="small"
+                    onClick={() => handleOpenEdit({ id: item.id, task: item.task, assignee: item.assignee, dueDate: item.dueDate || "" })}
+                    sx={{ color: "#71717a", "&:hover": { color: "#0071e3", bgcolor: "rgba(0,113,227,0.08)" } }}
+                  >
+                    <Edit2 size={14} />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDelete(item.id)}
+                    sx={{ color: "#71717a", "&:hover": { color: "#e11d48", bgcolor: "rgba(225,29,72,0.08)" } }}
+                  >
+                    <Trash2 size={14} />
+                  </IconButton>
+                </Stack>
               </Stack>
             </Paper>
           );
@@ -897,43 +1542,598 @@ function ActionsTab({
 
         {group.actionItems.length === 0 && <EmptyState icon={ListTodo} text="ไม่พบงานมอบหมายจากการวิเคราะห์กลุ่มแชทนี้" />}
       </Stack>
+
+      <TaskDialog
+        open={dialogOpen}
+        title={dialogMode === "create" ? "เพิ่มงานใหม่" : "แก้ไขงาน"}
+        contributors={group.contributors}
+        initialValues={selectedItem || undefined}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+      />
+
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "16px",
+              p: 2.5,
+              bgcolor: "#ffffff",
+              border: "1px solid rgba(0,0,0,0.08)",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.12)",
+              maxWidth: 420,
+            }
+          }
+        }}
+      >
+        <Stack direction="row" spacing={2} sx={{ pb: 1, alignItems: "flex-start" }}>
+          <Avatar 
+            sx={{ 
+              width: 40, 
+              height: 40, 
+              bgcolor: "#fff1f2", 
+              color: "#ff3b30",
+              border: "1px solid #ffe4e6",
+              borderRadius: "10px",
+              flexShrink: 0
+            }}
+          >
+            <Trash2 size={20} />
+          </Avatar>
+          <Box sx={{ flex: 1 }}>
+            <DialogTitle sx={{ fontWeight: 700, fontSize: 16, p: 0, mb: 1, color: "#1d1d1f" }}>
+              ยืนยันการลบงาน
+            </DialogTitle>
+            <Typography sx={{ fontSize: 13.5, color: "#6e6e73", lineHeight: 1.6 }}>
+              คุณแน่ใจหรือไม่ว่าต้องการลบงานนี้? เมื่อลบแล้ว ข้อมูลงานจะไม่สามารถกู้คืนกลับมาได้
+            </Typography>
+          </Box>
+        </Stack>
+        
+        <DialogActions sx={{ px: 0, pb: 0, pt: 2, gap: 1.5, borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+          <Button
+            onClick={() => setDeleteConfirmOpen(false)}
+            variant="outlined"
+            sx={{
+              flex: 1,
+              height: 38,
+              borderRadius: "10px",
+              borderColor: "rgba(0,0,0,0.12)",
+              color: "#1d1d1f",
+              fontWeight: 600,
+              fontSize: 13,
+              textTransform: "none",
+              bgcolor: "rgba(255,255,255,0.72)",
+              "&:hover": {
+                borderColor: "rgba(0,0,0,0.24)",
+                bgcolor: "rgba(0,0,0,0.03)"
+              }
+            }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            variant="contained"
+            sx={{
+              flex: 1,
+              height: 38,
+              borderRadius: "10px",
+              bgcolor: "#ff3b30",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 13,
+              textTransform: "none",
+              boxShadow: "none",
+              "&:hover": {
+                bgcolor: "#d9261c",
+                boxShadow: "none"
+              }
+            }}
+          >
+            ลบงาน
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
 
-function TopicsTab({ group }: { group: LineGroup }) {
-  if (group.topics.length === 0) {
-    return <EmptyState icon={Hash} text="ไม่พบหัวข้อหลักจากการวิเคราะห์กลุ่มแชทนี้" />;
-  }
+interface TopicDialogProps {
+  open: boolean;
+  title: string;
+  initialValues?: { name: string; category: string; relevance: number; keyPoints: string[] };
+  onClose: () => void;
+  onSave: (data: { name: string; category: string; relevance: number; keyPoints: string[] }) => void;
+}
+
+function TopicDialog({ open, title, initialValues, onClose, onSave }: TopicDialogProps) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<"urgent" | "work" | "finance" | "social" | "general">("general");
+  const [relevance, setRelevance] = useState<number>(80);
+  const [keyPointsText, setKeyPointsText] = useState("");
+
+  React.useEffect(() => {
+    if (open) {
+      setName(initialValues?.name || "");
+      setCategory((initialValues?.category as any) || "general");
+      setRelevance(initialValues?.relevance !== undefined ? initialValues.relevance : 80);
+      setKeyPointsText(initialValues?.keyPoints ? initialValues.keyPoints.join("\n") : "");
+    }
+  }, [open, initialValues]);
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      toast.error("กรุณากรอกหัวข้อหลัก");
+      return;
+    }
+    if (relevance < 10 || relevance > 100) {
+      toast.error("ระดับความสำคัญต้องอยู่ระหว่าง 10 ถึง 100");
+      return;
+    }
+    const points = keyPointsText.split("\n").map(p => p.trim()).filter(Boolean);
+    if (points.length === 0) {
+      toast.error("กรุณากรอกประเด็นย่อยอย่างน้อย 1 รายการ");
+      return;
+    }
+    onSave({
+      name: name.trim(),
+      category,
+      relevance: Number(relevance),
+      keyPoints: points
+    });
+  };
 
   return (
-    <Stack spacing={2}>
-      {group.topics.map((topic, index) => {
-        const color = topicColor(topic.category);
-        return (
-          <Paper key={`${topic.name}-${index}`} elevation={0} sx={{ p: 2.5, border: "1px solid #e4e4e7", borderRadius: 3, bgcolor: "#fff" }}>
-            <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 1.5 }}>
-              <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", minWidth: 0 }}>
-                <Avatar sx={{ width: 28, height: 28, borderRadius: 2, bgcolor: "#f4f4f5", color: "#71717a", fontSize: 12, fontWeight: 600 }}>#{index + 1}</Avatar>
-                <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#27272a" }}>{topic.name}</Typography>
-              </Stack>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-                <Chip size="small" label={topic.category} sx={{ bgcolor: color.bg, color: color.color, border: `1px solid ${color.border}`, fontWeight: 600, textTransform: "uppercase", fontSize: 10 }} />
-                <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#71717a" }}>ความสำคัญ: {topic.relevance}%</Typography>
-              </Stack>
-            </Stack>
-            <LinearProgress variant="determinate" value={topic.relevance} sx={{ mt: 2, height: 6, borderRadius: 999, bgcolor: "#f4f4f5", "& .MuiLinearProgress-bar": { bgcolor: color.color, borderRadius: 999 } }} />
-            <Stack component="ul" spacing={1.25} sx={{ mt: 2, mb: 0, pl: 0, listStyle: "none" }}>
-              {topic.keyPoints.map((point, pointIndex) => (
-                <Stack key={pointIndex} component="li" direction="row" spacing={1.25} sx={{ alignItems: "flex-start" }}>
-                  <Box sx={{ mt: "9px", width: 5, height: 5, borderRadius: "50%", bgcolor: "#10b981", flexShrink: 0 }} />
-                  <Typography sx={{ fontSize: 14, lineHeight: 1.75, fontWeight: 400, color: "#52525b" }}>{point}</Typography>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 4,
+            p: 1.5,
+            bgcolor: "#ffffff",
+            border: "1px solid rgba(0,0,0,0.08)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.15)"
+          }
+        }
+      }}
+    >
+      <DialogTitle sx={{ fontWeight: 700, fontSize: 16, pb: 1, color: "#1d1d1f" }}>
+        {title}
+      </DialogTitle>
+      
+      <DialogContent sx={{ pb: 2 }}>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          {/* Topic Name */}
+          <Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73", mb: 0.75 }}>
+              ชื่อประเด็น <Box component="span" sx={{ color: "#ff3b30" }}>*</Box>
+            </Typography>
+            <TextField
+              fullWidth
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="ระบุชื่อประเด็นสำคัญ..."
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: 38,
+                  borderRadius: 2.5,
+                  bgcolor: "rgba(255,255,255,0.72)",
+                  color: "#1d1d1f",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                  "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                  "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                },
+              }}
+            />
+          </Box>
+
+          {/* Category + Relevance Row */}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73", mb: 0.75 }}>
+                หมวดหมู่ <Box component="span" sx={{ color: "#ff3b30" }}>*</Box>
+              </Typography>
+              <TextField
+                select
+                fullWidth
+                value={category}
+                onChange={(e) => setCategory(e.target.value as any)}
+                slotProps={{
+                  select: { native: true }
+                }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: 38,
+                    borderRadius: 2.5,
+                    bgcolor: "rgba(255,255,255,0.72)",
+                    color: "#1d1d1f",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                    "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                    "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                  },
+                }}
+              >
+                <option value="general">ทั่วไป (general)</option>
+                <option value="urgent">เร่งด่วน (urgent)</option>
+                <option value="work">งาน (work)</option>
+                <option value="finance">การเงิน (finance)</option>
+                <option value="social">สังคม (social)</option>
+              </TextField>
+            </Box>
+
+            {/* Relevance */}
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73", mb: 0.75 }}>
+                ระดับความสำคัญ <Box component="span" sx={{ color: "#ff3b30" }}>*</Box>
+              </Typography>
+              <TextField
+                select
+                fullWidth
+                value={relevance}
+                onChange={(e) => setRelevance(Number(e.target.value))}
+                slotProps={{
+                  select: { native: true }
+                }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: 38,
+                    borderRadius: 2.5,
+                    bgcolor: "rgba(255,255,255,0.72)",
+                    color: "#1d1d1f",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                    "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                    "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                  },
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={30}>30</option>
+                <option value={40}>40</option>
+                <option value={50}>50</option>
+                <option value={60}>60</option>
+                <option value={70}>70</option>
+                <option value={80}>80</option>
+                <option value={90}>90</option>
+                <option value={100}>100</option>
+              </TextField>
+            </Box>
+          </Stack>
+
+          {/* Key Points Text Area */}
+          <Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#6e6e73", mb: 0.75 }}>
+              ประเด็นย่อย (ขึ้นบรรทัดใหม่เมื่อขึ้นประเด็นใหม่) <Box component="span" sx={{ color: "#ff3b30" }}>*</Box>
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              placeholder="ระบุประเด็นย่อย...&#10;เช่น ประเด็นย่อยที่ 1&#10;ประเด็นย่อยที่ 2"
+              value={keyPointsText}
+              onChange={(e) => setKeyPointsText(e.target.value)}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2.5,
+                  bgcolor: "rgba(255,255,255,0.72)",
+                  color: "#1d1d1f",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  p: 1.5,
+                  "& fieldset": { borderColor: "rgba(0,0,0,0.08)" },
+                  "&:hover fieldset": { borderColor: "rgba(0,0,0,0.15)" },
+                  "&.Mui-focused fieldset": { borderColor: "#0071e3", borderWidth: 1 },
+                },
+              }}
+            />
+          </Box>
+        </Stack>
+      </DialogContent>
+      
+      <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1.5 }}>
+        <Button 
+          onClick={onClose} 
+          variant="outlined" 
+          sx={{ 
+            flex: 1,
+            height: 36,
+            borderRadius: 2.5, 
+            borderColor: "rgba(0,0,0,0.12)",
+            color: "#1d1d1f", 
+            fontWeight: 600,
+            fontSize: 13,
+            textTransform: "none", 
+            bgcolor: "rgba(255,255,255,0.6)",
+            "&:hover": { 
+              borderColor: "rgba(0,0,0,0.24)", 
+              bgcolor: "rgba(0,0,0,0.03)" 
+            } 
+          }}
+        >
+          ยกเลิก
+        </Button>
+        <Button 
+          onClick={handleSave} 
+          variant="contained" 
+          sx={{ 
+            flex: 1,
+            height: 36,
+            borderRadius: 2.5, 
+            bgcolor: "#0071e3", 
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: 13,
+            textTransform: "none", 
+            boxShadow: "none",
+            "&:hover": { 
+              bgcolor: "#005bb5", 
+              boxShadow: "none" 
+            } 
+          }}
+        >
+          บันทึก
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function TopicsTab({
+  group,
+  onCreateTopic,
+  onUpdateTopic,
+  onDeleteTopic,
+}: {
+  group: LineGroup;
+  onCreateTopic: (groupId: string, data: { name: string; category: string; relevance: number; keyPoints: string[] }) => Promise<void>;
+  onUpdateTopic: (topicId: number, data: { name: string; category: string; relevance: number; keyPoints: string[] }) => Promise<void>;
+  onDeleteTopic: (groupId: string, topicId: number) => Promise<void>;
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "update">("create");
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [topicIdToDelete, setTopicIdToDelete] = useState<number | null>(null);
+
+  const handleOpenCreate = () => {
+    setDialogMode("create");
+    setSelectedTopic(null);
+    setDialogOpen(true);
+  };
+
+  const handleOpenEdit = (topic: Topic) => {
+    setDialogMode("update");
+    setSelectedTopic(topic);
+    setDialogOpen(true);
+  };
+
+  const handleSave = async (data: { name: string; category: string; relevance: number; keyPoints: string[] }) => {
+    setDialogOpen(false);
+    if (dialogMode === "create") {
+      await onCreateTopic(group.id, data);
+    } else if (dialogMode === "update" && selectedTopic && selectedTopic.id) {
+      await onUpdateTopic(selectedTopic.id, data);
+    }
+  };
+
+  const handleDeleteClick = (topic: Topic) => {
+    if (topic.id) {
+      setTopicIdToDelete(topic.id);
+      setDeleteConfirmOpen(true);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (topicIdToDelete) {
+      await onDeleteTopic(group.id, topicIdToDelete);
+    }
+    setDeleteConfirmOpen(false);
+    setTopicIdToDelete(null);
+  };
+
+  return (
+    <Stack spacing={2.5}>
+      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", pb: 1.5, borderBottom: "1px solid #e4e4e7" }}>
+        <Typography sx={{ fontSize: 11.5, fontWeight: 500, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: 0.8 }}>หัวข้อหลักสำคัญที่วิเคราะห์ได้จากแชท</Typography>
+        <Button
+          size="small"
+          variant="contained"
+          startIcon={<Plus size={14} />}
+          onClick={handleOpenCreate}
+          sx={{
+            height: 28,
+            borderRadius: 2,
+            bgcolor: "#0071e3",
+            fontSize: 12,
+            fontWeight: 600,
+            textTransform: "none",
+            boxShadow: "none",
+            "&:hover": { bgcolor: "#005bb5", boxShadow: "none" }
+          }}
+        >
+          เพิ่มประเด็น
+        </Button>
+      </Stack>
+
+      <Stack spacing={2}>
+        {group.topics.map((topic, index) => {
+          const color = topicColor(topic.category);
+          return (
+            <Paper 
+              key={topic.id || `${topic.name}-${index}`} 
+              elevation={0} 
+              sx={{ 
+                p: 2.5, 
+                border: "1px solid #e4e4e7", 
+                borderRadius: 3, 
+                bgcolor: "#fff",
+                position: "relative",
+                "&:hover .action-buttons": { opacity: 1 },
+              }}
+            >
+              <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 1.5 }}>
+                <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", minWidth: 0, flex: 1 }}>
+                  <Avatar sx={{ width: 28, height: 28, borderRadius: 2, bgcolor: "#f4f4f5", color: "#71717a", fontSize: 12, fontWeight: 600 }}>#{index + 1}</Avatar>
+                  <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#27272a" }}>{topic.name}</Typography>
                 </Stack>
-              ))}
-            </Stack>
-          </Paper>
-        );
-      })}
+                
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexShrink: 0 }}>
+                  <Chip size="small" label={topic.category} sx={{ bgcolor: color.bg, color: color.color, border: `1px solid ${color.border}`, fontWeight: 600, textTransform: "uppercase", fontSize: 10 }} />
+                  <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#71717a" }}>ความสำคัญ: {topic.relevance}%</Typography>
+                  
+                  <Stack
+                    direction="row"
+                    className="action-buttons"
+                    spacing={0.5}
+                    sx={{
+                      opacity: 0,
+                      transition: "opacity 150ms ease",
+                      ml: 1,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenEdit(topic)}
+                      sx={{ color: "#71717a", "&:hover": { color: "#0071e3", bgcolor: "rgba(0,113,227,0.08)" } }}
+                    >
+                      <Edit2 size={14} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteClick(topic)}
+                      sx={{ color: "#71717a", "&:hover": { color: "#e11d48", bgcolor: "rgba(225,29,72,0.08)" } }}
+                    >
+                      <Trash2 size={14} />
+                    </IconButton>
+                  </Stack>
+                </Stack>
+              </Stack>
+              <LinearProgress variant="determinate" value={topic.relevance} sx={{ mt: 2, height: 6, borderRadius: 999, bgcolor: "#f4f4f5", "& .MuiLinearProgress-bar": { bgcolor: color.color, borderRadius: 999 } }} />
+              <Stack component="ul" spacing={1.25} sx={{ mt: 2, mb: 0, pl: 0, listStyle: "none" }}>
+                {topic.keyPoints.map((point, pointIndex) => (
+                  <Stack key={pointIndex} component="li" direction="row" spacing={1.25} sx={{ alignItems: "flex-start" }}>
+                    <Box sx={{ mt: "9px", width: 5, height: 5, borderRadius: "50%", bgcolor: "#10b981", flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: 14, lineHeight: 1.75, fontWeight: 400, color: "#52525b" }}>{point}</Typography>
+                  </Stack>
+                ))}
+              </Stack>
+            </Paper>
+          );
+        })}
+
+        {group.topics.length === 0 && <EmptyState icon={Hash} text="ไม่พบหัวข้อหลักจากการวิเคราะห์กลุ่มแชทนี้" />}
+      </Stack>
+
+      {/* Create / Edit Topic Dialog */}
+      <TopicDialog
+        open={dialogOpen}
+        title={dialogMode === "create" ? "เพิ่มประเด็นสำคัญใหม่" : "แก้ไขประเด็นสำคัญ"}
+        initialValues={selectedTopic || undefined}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "16px",
+              p: 2.5,
+              bgcolor: "#ffffff",
+              border: "1px solid rgba(0,0,0,0.08)",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.12)",
+              maxWidth: 420,
+            }
+          }
+        }}
+      >
+        <Stack direction="row" spacing={2} sx={{ pb: 1, alignItems: "flex-start" }}>
+          <Avatar 
+            sx={{ 
+              width: 40, 
+              height: 40, 
+              bgcolor: "#fff1f2", 
+              color: "#ff3b30",
+              border: "1px solid #ffe4e6",
+              borderRadius: "10px",
+              flexShrink: 0
+            }}
+          >
+            <Trash2 size={20} />
+          </Avatar>
+          <Box sx={{ flex: 1 }}>
+            <DialogTitle sx={{ fontWeight: 700, fontSize: 16, p: 0, mb: 1, color: "#1d1d1f" }}>
+              ยืนยันการลบประเด็นสำคัญ
+            </DialogTitle>
+            <Typography sx={{ fontSize: 13.5, color: "#6e6e73", lineHeight: 1.6 }}>
+              คุณแน่ใจหรือไม่ว่าต้องการลบประเด็นสำคัญนี้? เมื่อลบแล้ว ข้อมูลจะไม่สามารถกู้คืนกลับมาได้
+            </Typography>
+          </Box>
+        </Stack>
+        
+        <DialogActions sx={{ px: 0, pb: 0, pt: 2, gap: 1.5, borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+          <Button
+            onClick={() => setDeleteConfirmOpen(false)}
+            variant="outlined"
+            sx={{
+              flex: 1,
+              height: 38,
+              borderRadius: "10px",
+              borderColor: "rgba(0,0,0,0.12)",
+              color: "#1d1d1f",
+              fontWeight: 600,
+              fontSize: 13,
+              textTransform: "none",
+              bgcolor: "rgba(255,255,255,0.72)",
+              "&:hover": {
+                borderColor: "rgba(0,0,0,0.24)",
+                bgcolor: "rgba(0,0,0,0.03)"
+              }
+            }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            variant="contained"
+            sx={{
+              flex: 1,
+              height: 38,
+              borderRadius: "10px",
+              bgcolor: "#ff3b30",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 13,
+              textTransform: "none",
+              boxShadow: "none",
+              "&:hover": {
+                bgcolor: "#d9261c",
+                boxShadow: "none"
+              }
+            }}
+          >
+            ลบประเด็น
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
@@ -994,7 +2194,20 @@ function ContributorsCard({
           >
             <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
               <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", minWidth: 0 }}>
-                <Avatar sx={{ width: 26, height: 26, borderRadius: 2, bgcolor: index === 0 ? "#fef3c7" : "#f4f4f5", color: index === 0 ? "#92400e" : "#71717a", fontSize: 11, fontWeight: 600 }}>{index + 1}</Avatar>
+                <Avatar 
+                  src={contributor.profileImageUrl || undefined}
+                  sx={{ 
+                    width: 26, 
+                    height: 26, 
+                    borderRadius: 2, 
+                    bgcolor: contributor.profileImageUrl ? "transparent" : (index === 0 ? "#fef3c7" : "#f4f4f5"), 
+                    color: index === 0 ? "#92400e" : "#71717a", 
+                    fontSize: 11, 
+                    fontWeight: 600 
+                  }}
+                >
+                  {!contributor.profileImageUrl && (index + 1)}
+                </Avatar>
                 <Typography noWrap sx={{ fontSize: 13, fontWeight: 500, color: "#27272a" }}>{contributor.name}</Typography>
               </Stack>
               <Chip size="small" label={`${contributor.messagesCount} แชท`} sx={{ bgcolor: "#f4f4f5", fontWeight: 500, fontSize: 11 }} />

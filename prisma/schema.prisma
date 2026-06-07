@@ -54,46 +54,51 @@ model VerificationToken {
 }
 
 model LineGroup {
-  id                      String        @id
+  id                      String                  @id
   name                    String
   avatarColor             String
-  unreadCount             Int           @default(0)
+  unreadCount             Int                     @default(0)
   lastActive              String
   membersCount            Int
-  syncStatus              String        @default("idle")
+  syncStatus              String                  @default("idle")
   lastSynced              String
-  rawChat                 String        @db.LongText
-  syncError               String?       @db.Text
+  lastSyncedAt            DateTime?
+  rawChat                 String                  @db.LongText
+  syncError               String?                 @db.Text
+  groupImageUrl           String?                 @db.Text
   
   // Stats
-  messagesToday           Int           @default(0)
-  messagesChange          Int           @default(0)
-  activeContributorsCount Int           @default(0)
-  sentiment               String        @default("Neutral")
-  sentimentScore          Int           @default(50)
+  messagesToday           Int                     @default(0)
+  messagesChange          Int                     @default(0)
+  activeContributorsCount Int                     @default(0)
+  sentiment               String                  @default("Neutral")
+  sentimentScore          Int                     @default(50)
   
   // Summary
-  summaryOverall          String?       @db.Text
-  summaryMorning          String?       @db.Text
-  summaryAfternoon        String?       @db.Text
-  summaryEvening          String?       @db.Text
+  summaryOverall          String?                 @db.Text
+  summaryMorning          String?                 @db.Text
+  summaryAfternoon        String?                 @db.Text
+  summaryEvening          String?                 @db.Text
 
   // JSON fields
-  hourlyActivity          Json?         // Stores [number, number, ...] array
+  hourlyActivity          Json?                   // Stores [number, number, ...] array
 
   // Relations
   contributors            Contributor[]
   actionItems             ActionItem[]
   topics                  Topic[]
+  attachments             LineMessageAttachment[]
+  dailySummaries          DailySummary[]
 }
 
 model Contributor {
-  id            Int       @id @default(autoincrement())
-  groupId       String
-  group         LineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  name          String
-  messagesCount Int
-  avatarColor   String
+  id              Int       @id @default(autoincrement())
+  groupId         String
+  group           LineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name            String
+  messagesCount   Int
+  avatarColor     String
+  profileImageUrl String?   @db.Text
 }
 
 model ActionItem {
@@ -131,4 +136,51 @@ model SystemSetting {
   lineChannelSecretEnc    String?  @db.Text
   lineAccessTokenEnc      String?  @db.Text
   updatedAt               DateTime @updatedAt
+}
+
+model DailySummary {
+  id                      String    @id @default(cuid())
+  groupId                 String
+  group                   LineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  summaryDate             DateTime  // Normalized to local midnight (00:00:00)
+  
+  // Summary contents
+  summaryOverall          String    @db.Text
+  summaryMorning          String    @db.Text
+  summaryAfternoon        String    @db.Text
+  summaryEvening          String    @db.Text
+
+  // Stats snapshot
+  messagesCount           Int       @default(0)
+  activeContributorsCount Int       @default(0)
+  sentiment               String    @default("Neutral")
+  sentimentScore          Int       @default(50)
+
+  // Snapshots of topics & action items (stored as JSON arrays)
+  topics                  Json?     // Snapshot of topics
+  actionItems             Json?     // Snapshot of action items
+
+  createdAt               DateTime  @default(now())
+
+  @@unique([groupId, summaryDate])
+  @@index([groupId, summaryDate])
+}
+
+model LineMessageAttachment {
+  id                  String    @id
+  groupId             String
+  group               LineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId              String?
+  senderName          String
+  messageType         String
+  contentProviderType String?
+  filePath            String?   @db.Text
+  originalContentUrl  String?   @db.Text
+  previewImageUrl     String?   @db.Text
+  mimeType            String?
+  fileSize            Int?
+  messageTimestamp    DateTime
+  createdAt           DateTime  @default(now())
+
+  @@index([groupId])
 }
