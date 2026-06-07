@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { LineGroup, Topic } from "../lib/MockData";
+import { getSummaryHistoryDates, getSummaryByDate } from "@/app/actions/groups";
 import { toast } from "sonner";
 import {
   Alert,
@@ -53,6 +54,10 @@ import {
   Edit2,
   Trash2,
   Plus,
+  Calendar,
+  History,
+  ChevronDown,
+  ArrowLeft,
 } from "lucide-react";
 
 interface SummaryDashboardProps {
@@ -126,6 +131,74 @@ export function SummaryDashboard({
   const [seenTopicsCounts, setSeenTopicsCounts] = useState<Record<string, number>>({});
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // ── History date filter ──────────────────────────────────────────
+  type HistoryDate = { dateStr: string; label: string };
+  type HistoryData = {
+    summaryDate: string;
+    summary: { overall: string; morning: string; afternoon: string; evening: string };
+    stats: { messagesToday: number; activeContributorsCount: number; sentiment: string; sentimentScore: number };
+    topics: { name: string; category: string; relevance: number; keyPoints: string[] }[];
+    actionItems: { task: string; assignee: string; status?: string; assignedDate?: string; dueDate?: string }[];
+  };
+
+  const [historyDates, setHistoryDates] = useState<HistoryDate[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>("today");
+  const [historyData, setHistoryData] = useState<HistoryData | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const isHistoryMode = selectedDate !== "today";
+
+  // Load available history dates whenever group changes
+  useEffect(() => {
+    getSummaryHistoryDates(group.id).then((res) => {
+      if (res.success && res.data) setHistoryDates(res.data as HistoryDate[]);
+    });
+  }, [group.id]);
+
+  // Reset to today when group changes
+  useEffect(() => {
+    setSelectedDate("today");
+    setHistoryData(null);
+  }, [group.id]);
+
+  // Fetch historical data when a past date is selected
+  const handleSelectDate = useCallback(async (dateStr: string) => {
+    setDateMenuOpen(false);
+    if (dateStr === "today") {
+      setSelectedDate("today");
+      setHistoryData(null);
+      return;
+    }
+    setSelectedDate(dateStr);
+    setHistoryLoading(true);
+    try {
+      const res = await getSummaryByDate(group.id, dateStr);
+      if (res.success && res.data) {
+        setHistoryData(res.data as unknown as HistoryData);
+      } else {
+        toast.error("ไม่พบข้อมูลย้อนหลังของวันที่เลือก");
+        setSelectedDate("today");
+        setHistoryData(null);
+      }
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [group.id]);
+
+  // Effective data: history snapshot or live group
+  const effectiveSummary = isHistoryMode && historyData ? historyData.summary : group.summary;
+  const effectiveStats = isHistoryMode && historyData ? historyData.stats : group.stats;
+  const effectiveTopics = isHistoryMode && historyData ? historyData.topics : group.topics;
+  const selectedDateLabel = historyDates.find(d => d.dateStr === selectedDate)?.label || selectedDate;
+
+  // Close date menu on outside click
+  useEffect(() => {
+    if (!dateMenuOpen) return;
+    const handler = () => setDateMenuOpen(false);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [dateMenuOpen]);
+
   // Load from localStorage on client-side mount
   React.useEffect(() => {
     try {
@@ -161,12 +234,13 @@ export function SummaryDashboard({
   const isSyncing = group.syncStatus === "syncing";
   const isIdle = group.syncStatus === "idle";
   const isFailed = group.syncStatus === "failed";
-  const pendingActionsCount = group.actionItems.filter((item) => item.status === "pending").length;
-  const completedActionsCount = group.actionItems.filter((item) => item.status === "completed").length;
-  const totalActionsCount = group.actionItems.length;
+  const effectiveActionItems = isHistoryMode && historyData ? historyData.actionItems : group.actionItems;
+  const pendingActionsCount = effectiveActionItems.filter((item) => item.status !== "completed").length;
+  const completedActionsCount = effectiveActionItems.filter((item) => item.status === "completed").length;
+  const totalActionsCount = effectiveActionItems.length;
   const completionPercent = totalActionsCount > 0 ? Math.round((completedActionsCount / totalActionsCount) * 100) : 0;
   const maxActivity = Math.max(...group.hourlyActivity, 1);
-  const sentiment = sentimentMeta(group.stats.sentiment);
+  const sentiment = sentimentMeta(effectiveStats.sentiment);
 
   const seenCount = seenTopicsCounts[group.id] ?? 0;
   const unreadTopicsCount = isHydrated ? Math.max(0, group.topics.length - seenCount) : 0;
@@ -206,27 +280,137 @@ export function SummaryDashboard({
           </Typography>
         </Box>
 
-        <Button
-          onClick={() => onSync(group.id)}
-          disabled={isSyncing}
-          variant={isSyncing ? "outlined" : "contained"}
-          startIcon={<RefreshCw size={17} className={isSyncing ? "app-spin" : ""} />}
-          sx={{
-            minHeight: 40,
-            flexShrink: 0,
-            borderRadius: 2.5,
-            px: { xs: 1.75, sm: 2.5 },
-            bgcolor: isSyncing ? undefined : "#059669",
-            borderColor: "#e4e4e7",
-            color: isSyncing ? "#71717a" : "#fff",
-            fontWeight: 600,
-            textTransform: "none",
-            boxShadow: isSyncing ? "none" : "0 8px 16px rgba(5,150,105,0.16)",
-            "&:hover": { bgcolor: isSyncing ? "#f4f4f5" : "#047857" },
-          }}
-        >
-          {isSyncing ? "กำลังวิเคราะห์..." : "Sync & สรุปข้อมูล"}
-        </Button>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} sx={{ alignItems: { xs: "stretch", sm: "center" }, flexShrink: 0 }}>
+          {/* DatePicker filter */}
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <DatePicker
+              label="เลือกวันที่"
+              format="DD/MM/YYYY"
+              value={selectedDate === "today" ? null : dayjs(selectedDate)}
+              onChange={(newVal: Dayjs | null) => {
+                if (!newVal || !newVal.isValid()) {
+                  handleSelectDate("today");
+                } else {
+                  handleSelectDate(newVal.format("YYYY-MM-DD"));
+                }
+              }}
+              shouldDisableDate={(date: Dayjs) => {
+                const dateStr = date.format("YYYY-MM-DD");
+                const today = dayjs().format("YYYY-MM-DD");
+                return dateStr !== today && !historyDates.some((d) => d.dateStr === dateStr);
+              }}
+              slotProps={{
+                textField: {
+                  size: "small",
+                  sx: {
+                    opacity: 1,
+                    bgcolor: "#fff",
+                    "& .MuiInputBase-root": { opacity: 1, bgcolor: "#fff" },
+                    "& .MuiInputLabel-root": { opacity: 1 },
+                    "& .MuiSvgIcon-root": { opacity: 1 },
+                  },
+                  slotProps: {
+                    input: {
+                      sx: {
+                        opacity: 1,
+                        height: 40,
+                        borderRadius: 2.5,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: isHistoryMode ? "#7c3aed" : "#52525b",
+                        bgcolor: isHistoryMode ? "#f5f3ff" : "#fff",
+                        "&.Mui-disabled": { opacity: 1 },
+                        "& fieldset": {
+                          borderColor: isHistoryMode ? "#7c3aed" : "#e4e4e7",
+                        },
+                        "&:hover fieldset": { borderColor: "#7c3aed" },
+                        "&.Mui-focused fieldset": { borderColor: "#7c3aed", borderWidth: 1 },
+                      },
+                    },
+                    inputLabel: {
+                      sx: { opacity: 1, fontSize: 13, color: isHistoryMode ? "#7c3aed" : undefined },
+                    },
+                  },
+                },
+                desktopPaper: {
+                  elevation: 8,
+                  sx: {
+                    opacity: 1,
+                    bgcolor: "#fff",
+                    backgroundImage: "none",
+                    "& .MuiPickersLayout-root": { opacity: 1, bgcolor: "#fff" },
+                    "& .MuiPickersDay-root": { opacity: 1 },
+                    "& .Mui-disabled": { opacity: 1, color: "#d4d4d8" },
+                  },
+                },
+                mobilePaper: {
+                  sx: {
+                    opacity: 1,
+                    bgcolor: "#fff",
+                    backgroundImage: "none",
+                    "& .MuiPickersLayout-root": { opacity: 1, bgcolor: "#fff" },
+                    "& .MuiPickersDay-root": { opacity: 1 },
+                    "& .Mui-disabled": { opacity: 1, color: "#d4d4d8" },
+                  },
+                },
+                popper: {
+                  sx: {
+                    opacity: 1,
+                    "& .MuiPaper-root": {
+                      opacity: 1,
+                      bgcolor: "#fff",
+                      backgroundImage: "none",
+                    },
+                  },
+                },
+                actionBar: { actions: [] },
+              }}
+              sx={{ minWidth: 180 }}
+            />
+          </LocalizationProvider>
+
+          {/* Sync button — hidden when viewing history */}
+          {!isHistoryMode && (
+            <Button
+              onClick={() => onSync(group.id)}
+              disabled={isSyncing}
+              variant={isSyncing ? "outlined" : "contained"}
+              startIcon={<RefreshCw size={17} className={isSyncing ? "app-spin" : ""} />}
+              sx={{
+                minHeight: 40,
+                flexShrink: 0,
+                borderRadius: 2.5,
+                px: { xs: 1.75, sm: 2.5 },
+                bgcolor: isSyncing ? undefined : "#059669",
+                borderColor: "#e4e4e7",
+                color: isSyncing ? "#71717a" : "#fff",
+                fontWeight: 600,
+                textTransform: "none",
+                boxShadow: isSyncing ? "none" : "0 8px 16px rgba(5,150,105,0.16)",
+                "&:hover": { bgcolor: isSyncing ? "#f4f4f5" : "#047857" },
+              }}
+            >
+              {isSyncing ? "กำลังวิเคราะห์..." : "Sync & สรุปข้อมูล"}
+            </Button>
+          )}
+
+          {/* Back to today button — shown in history mode */}
+          {isHistoryMode && (
+            <Button
+              onClick={() => handleSelectDate("today")}
+              variant="contained"
+              startIcon={<ArrowLeft size={15} />}
+              sx={{
+                height: 40, borderRadius: 2.5, px: 2,
+                bgcolor: "#7c3aed", color: "#fff", fontWeight: 600, fontSize: 13,
+                textTransform: "none", boxShadow: "none",
+                "&:hover": { bgcolor: "#6d28d9" },
+              }}
+            >
+              กลับวันนี้
+            </Button>
+          )}
+        </Stack>
       </Box>
 
       <Box sx={{ flex: 1, overflowY: "auto", p: { xs: 2.5, sm: 4 } }}>
@@ -248,6 +432,35 @@ export function SummaryDashboard({
           />
         ) : (
           <Stack spacing={4}>
+            {/* History mode loading overlay */}
+            {historyLoading && (
+              <Box sx={{ py: 8, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "#7c3aed" }}>
+                <Box sx={{ width: 32, height: 32, border: "3px solid #ede9fe", borderTopColor: "#7c3aed", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>กำลังโหลดข้อมูลย้อนหลัง...</Typography>
+              </Box>
+            )}
+
+            {/* History mode banner */}
+            {isHistoryMode && !historyLoading && historyData && (
+              <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: "1px solid #ddd6fe", bgcolor: "#f5f3ff", display: "flex", alignItems: "center", gap: 1.5 }}>
+                <History size={16} color="#7c3aed" />
+                <Box sx={{ flex: 1 }}>
+                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#6d28d9" }}>
+                    กำลังดูข้อมูลย้อนหลัง — {selectedDateLabel}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.5, color: "#8b5cf6", mt: 0.25 }}>
+                    ข้อมูลนี้เป็น snapshot ณ วันที่เลือก ไม่สามารถแก้ไขได้
+                  </Typography>
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => handleSelectDate("today")}
+                  sx={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", textTransform: "none", borderRadius: 2, "&:hover": { bgcolor: "#ede9fe" } }}
+                >
+                  กลับวันนี้
+                </Button>
+              </Paper>
+            )}
             <Box
               sx={{
                 display: "grid",
@@ -261,29 +474,35 @@ export function SummaryDashboard({
             >
               <KpiCard
                 label="ข้อความวันนี้"
-                value={String(group.stats.messagesToday)}
+                value={String(effectiveStats.messagesToday)}
                 icon={FileText}
                 accent="#059669"
                 footer={
                   <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0 }}>
-                    <Chip
-                      size="small"
-                      icon={group.stats.messagesChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                      label={`${group.stats.messagesChange >= 0 ? "+" : ""}${group.stats.messagesChange}%`}
-                      sx={{
-                        height: 22,
-                        bgcolor: group.stats.messagesChange >= 0 ? "#ecfdf5" : "#fff1f2",
-                        color: group.stats.messagesChange >= 0 ? "#047857" : "#e11d48",
-                        fontWeight: 600,
-                      }}
-                    />
-                    <Typography noWrap sx={{ fontSize: 12, fontWeight: 500, color: "#a1a1aa" }}>เทียบกับเมื่อวาน</Typography>
+                    {isHistoryMode ? (
+                      <Typography noWrap sx={{ fontSize: 12, fontWeight: 500, color: "#a1a1aa" }}>ข้อมูลจาก snapshot วันที่เลือก</Typography>
+                    ) : (
+                      <>
+                        <Chip
+                          size="small"
+                          icon={group.stats.messagesChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                          label={`${group.stats.messagesChange >= 0 ? "+" : ""}${group.stats.messagesChange}%`}
+                          sx={{
+                            height: 22,
+                            bgcolor: group.stats.messagesChange >= 0 ? "#ecfdf5" : "#fff1f2",
+                            color: group.stats.messagesChange >= 0 ? "#047857" : "#e11d48",
+                            fontWeight: 600,
+                          }}
+                        />
+                        <Typography noWrap sx={{ fontSize: 12, fontWeight: 500, color: "#a1a1aa" }}>เทียบกับเมื่อวาน</Typography>
+                      </>
+                    )}
                   </Stack>
                 }
               />
               <KpiCard
                 label="สมาชิกส่งแชท"
-                value={`${group.stats.activeContributorsCount} / ${group.membersCount}`}
+                value={`${effectiveStats.activeContributorsCount} / ${isHistoryMode ? "?" : group.membersCount}`}
                 icon={User}
                 accent="#2563eb"
                 footer={<Typography sx={{ fontSize: 12, fontWeight: 500, color: "#a1a1aa" }}>คน ที่พูดคุยกันภายในกลุ่มวันนี้</Typography>}
@@ -297,9 +516,9 @@ export function SummaryDashboard({
                   <Box>
                     <Stack direction="row" sx={{ justifyContent: "space-between", mb: 0.75 }}>
                       <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#71717a" }}>ดัชนีเชิงบวก</Typography>
-                      <Typography sx={{ fontSize: 11, fontWeight: 600, color: sentiment.color }}>{group.stats.sentimentScore}%</Typography>
+                      <Typography sx={{ fontSize: 11, fontWeight: 600, color: sentiment.color }}>{effectiveStats.sentimentScore}%</Typography>
                     </Stack>
-                    <LinearProgress variant="determinate" value={group.stats.sentimentScore} sx={{ height: 6, borderRadius: 999, bgcolor: "#f4f4f5", "& .MuiLinearProgress-bar": { bgcolor: sentiment.color, borderRadius: 999 } }} />
+                    <LinearProgress variant="determinate" value={effectiveStats.sentimentScore} sx={{ height: 6, borderRadius: 999, bgcolor: "#f4f4f5", "& .MuiLinearProgress-bar": { bgcolor: sentiment.color, borderRadius: 999 } }} />
                   </Box>
                 }
               />
@@ -367,8 +586,8 @@ export function SummaryDashboard({
                     </Tabs>
                   </Box>
                   <Box sx={{ p: { xs: 2.5, sm: 4 }, minHeight: 420 }}>
-                    {activeTab === "summary" && <SummaryTab group={group} />}
-                    {activeTab === "actions" && (
+                    {activeTab === "summary" && <SummaryTab summary={effectiveSummary} />}
+                    {activeTab === "actions" && !isHistoryMode && (
                       <ActionsTab
                         group={group}
                         pendingActionsCount={pendingActionsCount}
@@ -378,13 +597,19 @@ export function SummaryDashboard({
                         onDeleteActionItem={onDeleteActionItem}
                       />
                     )}
-                    {activeTab === "topics" && (
+                    {activeTab === "topics" && !isHistoryMode && (
                       <TopicsTab
                         group={group}
                         onCreateTopic={onCreateTopic}
                         onUpdateTopic={onUpdateTopic}
                         onDeleteTopic={onDeleteTopic}
                       />
+                    )}
+                    {activeTab === "actions" && isHistoryMode && historyData && (
+                      <HistoryActionsPanel items={historyData.actionItems} />
+                    )}
+                    {activeTab === "topics" && isHistoryMode && historyData && (
+                      <HistoryTopicsPanel topics={historyData.topics as {name:string;category:string;relevance:number;keyPoints:string[]}[]} />
                     )}
                   </Box>
                 </Paper>
@@ -402,6 +627,7 @@ export function SummaryDashboard({
             </Box>
           </Stack>
         )}
+
       </Box>
 
       {/* Contributor Chat History Drawer */}
@@ -643,7 +869,7 @@ function KpiCard({
   );
 }
 
-function SummaryTab({ group }: { group: LineGroup }) {
+function SummaryTab({ summary }: { summary: { overall: string; morning: string; afternoon: string; evening: string } }) {
   return (
     <Stack spacing={4}>
       {/* Daily Overall Analysis Box */}
@@ -690,7 +916,7 @@ function SummaryTab({ group }: { group: LineGroup }) {
             color: "#3f3f46",
           }}
         >
-          {group.summary.overall}
+          {summary.overall}
         </Typography>
       </Paper>
 
@@ -701,21 +927,21 @@ function SummaryTab({ group }: { group: LineGroup }) {
           color="#d97706"
           label="ช่วงเช้า"
           timeRange="08:00 - 12:00"
-          text={group.summary.morning}
+          text={summary.morning}
         />
         <TimelineItem
           icon={Sun}
           color="#0284c7"
           label="ช่วงบ่าย"
           timeRange="12:00 - 17:00"
-          text={group.summary.afternoon}
+          text={summary.afternoon}
         />
         <TimelineItem
           icon={Moon}
           color="#4f46e5"
           label="ช่วงเย็น/ค่ำ"
           timeRange="17:00 เป็นต้นไป"
-          text={group.summary.evening}
+          text={summary.evening}
           last
         />
       </Stack>
@@ -1422,9 +1648,9 @@ function ActionsTab({
   return (
     <Stack spacing={2.5}>
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", alignItems: { sm: "center" }, gap: 1.5, pb: 1.5, borderBottom: "1px solid #e4e4e7" }}>
-        <Typography sx={{ fontSize: 11.5, fontWeight: 500, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: 0.8 }}>ทำเครื่องหมายหน้างานเมื่อทำงานเสร็จสิ้น</Typography>
+        <Typography sx={{ fontSize: 11.5, fontWeight: 500, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: 0.8 }}>งานค้างสะสมจากทุกวัน ทำเครื่องหมายเมื่อเสร็จสิ้น</Typography>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", alignSelf: { xs: "flex-start", sm: "center" } }}>
-          <Chip size="small" label={`งานที่ค้าง: ${pendingActionsCount}`} sx={{ bgcolor: "#f4f4f5", fontWeight: 600 }} />
+          <Chip size="small" label={`งานค้างสะสม: ${pendingActionsCount}`} sx={{ bgcolor: "#f4f4f5", fontWeight: 600 }} />
           <Button
             size="small"
             variant="contained"
@@ -1497,6 +1723,14 @@ function ActionsTab({
                           />
                         );
                       })}
+                      {item.assignedDate && (
+                        <Chip
+                          size="small"
+                          icon={<Calendar size={12} />}
+                          label={`วันที่สั่ง: ${item.assignedDate}`}
+                          sx={{ bgcolor: "#eef2ff", color: "#4338ca", fontWeight: 500, fontSize: 11, border: "1px solid #c7d2fe" }}
+                        />
+                      )}
                       {item.dueDate && (
                         <Chip
                           size="small"
@@ -2225,6 +2459,82 @@ function EmptyState({ icon: Icon, text }: { icon: React.ComponentType<{ size?: n
     <Stack spacing={1.25} sx={{ py: 8, alignItems: "center", color: "#a1a1aa" }}>
       <Icon size={34} color="#d4d4d8" />
       <Typography sx={{ fontSize: 13.5, fontWeight: 500 }}>{text}</Typography>
+    </Stack>
+  );
+}
+
+// ── Read-only History Panels ──────────────────────────────────────────────
+
+function HistoryActionsPanel({ items }: { items: { task: string; assignee: string; assignedDate?: string; dueDate?: string }[] }) {
+  if (!items || items.length === 0) {
+    return (
+      <Stack spacing={1.5} sx={{ py: 8, alignItems: "center", color: "#a1a1aa" }}>
+        <CheckCircle size={34} color="#d4d4d8" />
+        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>ไม่มีงานที่ต้องทำในวันนี้</Typography>
+      </Stack>
+    );
+  }
+  return (
+    <Stack spacing={2}>
+      <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", display: "flex", alignItems: "center", gap: 0.75 }}>
+        <History size={12} />
+        ข้อมูลย้อนหลัง — อ่านได้อย่างเดียว
+      </Typography>
+      {items.map((item, idx) => (
+        <Paper key={idx} elevation={0} sx={{ p: 2, border: "1px solid #e4e4e7", borderRadius: 2.5, bgcolor: "#fafafa" }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "flex-start" }}>
+            <Box sx={{ mt: 0.25, width: 16, height: 16, borderRadius: "50%", border: "1.5px solid #d4d4d8", flexShrink: 0 }} />
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 13.5, fontWeight: 500, color: "#27272a", lineHeight: 1.6 }}>{item.task}</Typography>
+              <Stack direction="row" spacing={2} sx={{ mt: 0.75 }}>
+                <Typography sx={{ fontSize: 11.5, fontWeight: 500, color: "#71717a" }}>ผู้รับผิดชอบ: {item.assignee}</Typography>
+                {item.assignedDate && <Typography sx={{ fontSize: 11.5, fontWeight: 500, color: "#71717a" }}>วันที่สั่ง: {item.assignedDate}</Typography>}
+                {item.dueDate && <Typography sx={{ fontSize: 11.5, fontWeight: 500, color: "#71717a" }}>กำหนด: {item.dueDate}</Typography>}
+              </Stack>
+            </Box>
+          </Stack>
+        </Paper>
+      ))}
+    </Stack>
+  );
+}
+
+function HistoryTopicsPanel({ topics }: { topics: { name: string; category: string; relevance: number; keyPoints: string[] }[] }) {
+  if (!topics || topics.length === 0) {
+    return (
+      <Stack spacing={1.5} sx={{ py: 8, alignItems: "center", color: "#a1a1aa" }}>
+        <Hash size={34} color="#d4d4d8" />
+        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>ไม่มีประเด็นสำคัญในวันนี้</Typography>
+      </Stack>
+    );
+  }
+  return (
+    <Stack spacing={2.5}>
+      <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", display: "flex", alignItems: "center", gap: 0.75 }}>
+        <History size={12} />
+        ข้อมูลย้อนหลัง — อ่านได้อย่างเดียว
+      </Typography>
+      {topics.map((topic, idx) => {
+        const colors = topicColor(topic.category);
+        return (
+          <Paper key={idx} elevation={0} sx={{ p: 2.5, border: `1px solid ${colors.border}`, borderLeft: `3px solid ${colors.color}`, borderRadius: 2.5, bgcolor: colors.bg }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 1.25 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: colors.color, flexShrink: 0 }} />
+              <Typography sx={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#18181b" }}>{topic.name}</Typography>
+              <Chip
+                size="small"
+                label={`${topic.relevance}%`}
+                sx={{ height: 20, fontSize: 11, fontWeight: 600, bgcolor: colors.color + "18", color: colors.color, border: `1px solid ${colors.border}` }}
+              />
+            </Stack>
+            <Box component="ul" sx={{ m: 0, pl: 2.25, display: "flex", flexDirection: "column", gap: 0.5 }}>
+              {(topic.keyPoints || []).map((point, pidx) => (
+                <Typography key={pidx} component="li" sx={{ fontSize: 13, lineHeight: 1.7, color: "#52525b" }}>{point}</Typography>
+              ))}
+            </Box>
+          </Paper>
+        );
+      })}
     </Stack>
   );
 }

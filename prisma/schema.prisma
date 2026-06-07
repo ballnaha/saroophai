@@ -108,6 +108,7 @@ model ActionItem {
   task      String    @db.Text
   assignee  String
   status    String    @default("pending") // "pending" | "completed"
+  assignedDate DateTime?
   dueDate   String?
 }
 

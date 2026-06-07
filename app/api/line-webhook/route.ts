@@ -5,6 +5,7 @@ import path from "path";
 import prisma from "@/lib/prisma";
 import { logToSystem } from "@/lib/logger";
 import { getLineChannelSecret, getLineAccessToken } from "@/lib/settings";
+import { applyRateLimit, lineWebhookLimiter } from "@/lib/rate-limiter";
 
 // Deterministic colors for new groups
 const GROUP_COLORS = [
@@ -227,6 +228,10 @@ async function saveLineMessageContent({
 }
 
 export async function POST(request: NextRequest) {
+  // ── Rate Limiting ──────────────────────────────────────────────────────
+  const rateLimitResult = await applyRateLimit(request, lineWebhookLimiter);
+  if (rateLimitResult) return rateLimitResult;
+
   try {
     const rawBody = await request.text();
     const signature = request.headers.get("x-line-signature");

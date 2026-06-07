@@ -10,6 +10,7 @@ export interface ActionItem {
   task: string;
   assignee: string;
   status: 'pending' | 'completed';
+  assignedDate?: string;
   dueDate?: string;
 }
 

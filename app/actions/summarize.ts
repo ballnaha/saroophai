@@ -56,6 +56,10 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function actionItemKey(task: string) {
+  return task.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function parseChatMessages(rawChat: string): ParsedChatMessage[] {
   return rawChat
     .split("\n")
@@ -247,19 +251,37 @@ async function saveSummaryPayload(groupId: string, payload: SummaryPayload) {
       },
     });
 
-    await tx.actionItem.deleteMany({ where: { groupId } });
+    const dateInBangkokStr = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" });
+    const summaryDate = new Date(dateInBangkokStr);
+
     if (payload.actionItems.length > 0) {
-      const now = Date.now();
-      await tx.actionItem.createMany({
-        data: payload.actionItems.map((item, idx) => ({
-          id: `act_gen_${groupId}_${idx}_${now}`,
-          groupId,
-          task: item.task,
-          assignee: item.assignee,
-          status: "pending",
-          dueDate: item.dueDate || null,
-        })),
+      const existingActionItems = await tx.actionItem.findMany({
+        where: { groupId },
+        select: { task: true },
       });
+      const existingKeys = new Set(existingActionItems.map((item) => actionItemKey(item.task)));
+      const newActionItems = payload.actionItems.filter((item) => {
+        const key = actionItemKey(item.task);
+
+        if (existingKeys.has(key)) return false;
+        existingKeys.add(key);
+        return true;
+      });
+      const now = Date.now();
+
+      if (newActionItems.length > 0) {
+        await tx.actionItem.createMany({
+          data: newActionItems.map((item, idx) => ({
+            id: `act_gen_${groupId}_${idx}_${now}`,
+            groupId,
+            task: item.task,
+            assignee: item.assignee,
+            status: "pending",
+            assignedDate: summaryDate,
+            dueDate: item.dueDate || null,
+          })),
+        });
+      }
     }
 
     await tx.topic.deleteMany({ where: { groupId } });
@@ -274,9 +296,6 @@ async function saveSummaryPayload(groupId: string, payload: SummaryPayload) {
         })),
       });
     }
-
-    const dateInBangkokStr = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" });
-    const summaryDate = new Date(dateInBangkokStr);
 
     await tx.dailySummary.upsert({
       where: {

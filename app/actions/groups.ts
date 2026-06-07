@@ -3,6 +3,46 @@
 import prisma from "@/lib/prisma";
 import { requireAdmin } from "@/lib/authz";
 
+const BANGKOK_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function formatBangkokDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function getBangkokDayRange(dateStr: string): { gte: Date; lte: Date } {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const bangkokMidnightUtcMs = Date.UTC(year, month - 1, day) - BANGKOK_UTC_OFFSET_MS;
+
+  return {
+    gte: new Date(bangkokMidnightUtcMs),
+    lte: new Date(bangkokMidnightUtcMs + 24 * 60 * 60 * 1000 - 1),
+  };
+}
+
+function formatBangkokDisplayDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
 function formatLastSynced(lastSyncedAt: Date | null, fallback: string): string {
   if (!lastSyncedAt) {
     return fallback || "ยังไม่เคยซิงค์ข้อมูล";
@@ -37,7 +77,11 @@ export async function getLineGroups() {
     const dbGroups = await prisma.lineGroup.findMany({
       include: {
         contributors: true,
-        actionItems: true,
+        actionItems: {
+          orderBy: {
+            status: "desc",
+          },
+        },
         topics: true,
         attachments: {
           orderBy: {
@@ -82,11 +126,12 @@ export async function getLineGroups() {
         afternoon: g.summaryAfternoon || "",
         evening: g.summaryEvening || "",
       },
-      actionItems: g.actionItems.map((a: { id: string; task: string; assignee: string; status: string; dueDate?: string | null }) => ({
+      actionItems: g.actionItems.map((a: { id: string; task: string; assignee: string; status: string; assignedDate?: Date | null; dueDate?: string | null }) => ({
         id: a.id,
         task: a.task,
         assignee: a.assignee,
         status: a.status as 'pending' | 'completed',
+        assignedDate: a.assignedDate ? formatBangkokDisplayDate(a.assignedDate) : undefined,
         dueDate: a.dueDate || undefined,
       })),
       topics: g.topics.map((t: { id: number; name: string; category: string; relevance: number; keyPoints: unknown }) => ({
@@ -165,6 +210,7 @@ export async function createActionItemDb(data: {
         task,
         assignee,
         status: "pending",
+        assignedDate: new Date(),
         dueDate: dueDate || null,
       },
     });
@@ -222,13 +268,8 @@ export async function getSummaryHistoryDates(groupId: string) {
     });
 
     const dates = summaries.map((s) => {
-      const date = new Date(s.summaryDate);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const dateStr = `${year}-${month}-${day}`;
-
-      const label = date.toLocaleDateString("th-TH", {
+      const dateStr = formatBangkokDateKey(s.summaryDate);
+      const label = s.summaryDate.toLocaleDateString("th-TH", {
         timeZone: "Asia/Bangkok",
         dateStyle: "medium",
       });
@@ -246,11 +287,8 @@ export async function getSummaryHistoryDates(groupId: string) {
 export async function getSummaryByDate(groupId: string, dateStr: string) {
   try {
     await requireAdmin();
-    
-    const startOfDay = new Date(dateStr + "T00:00:00.000Z");
-    const gte = new Date(startOfDay);
-    const lte = new Date(startOfDay);
-    lte.setHours(23, 59, 59, 999);
+
+    const { gte, lte } = getBangkokDayRange(dateStr);
 
     const summary = await prisma.dailySummary.findFirst({
       where: {

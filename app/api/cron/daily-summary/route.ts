@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { summarizeChatCore } from "@/app/actions/summarize";
 import { logToSystem } from "@/lib/logger";
+import { applyRateLimit, cronLimiter } from "@/lib/rate-limiter";
 
 export async function GET(request: NextRequest) {
+  // ── Rate Limiting ──────────────────────────────────────────────────────
+  const rateLimitResult = await applyRateLimit(request, cronLimiter);
+  if (rateLimitResult) return rateLimitResult;
+
   // 1. Authenticate Request
   const cronSecret = process.env.CRON_SECRET;
   const { searchParams } = new URL(request.url);
