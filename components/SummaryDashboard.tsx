@@ -130,6 +130,7 @@ export function SummaryDashboard({
   const [selectedContributor, setSelectedContributor] = useState<string | null>(null);
   const [seenTopicsCounts, setSeenTopicsCounts] = useState<Record<string, number>>({});
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // ── History date filter ──────────────────────────────────────────
   type HistoryDate = { dateStr: string; label: string };
@@ -164,9 +165,12 @@ export function SummaryDashboard({
   // Fetch historical data when a past date is selected
   const handleSelectDate = useCallback(async (dateStr: string) => {
     setDateMenuOpen(false);
+    setIsTransitioning(true);
+    const reset = () => setIsTransitioning(false);
     if (dateStr === "today") {
       setSelectedDate("today");
       setHistoryData(null);
+      setTimeout(reset, 300);
       return;
     }
     setSelectedDate(dateStr);
@@ -182,6 +186,7 @@ export function SummaryDashboard({
       }
     } finally {
       setHistoryLoading(false);
+      setTimeout(reset, 300);
     }
   }, [group.id]);
 
@@ -413,7 +418,16 @@ export function SummaryDashboard({
         </Stack>
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: "auto", p: { xs: 2.5, sm: 4 } }}>
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: "auto",
+          p: { xs: 2.5, sm: 4 },
+          opacity: isTransitioning ? 0.35 : 1,
+          transform: isTransitioning ? "translateY(6px)" : "translateY(0)",
+          transition: "opacity 280ms cubic-bezier(0.4, 0, 0.2, 1), transform 280ms cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      >
         {isFailed ? (
           <StatePanel
             tone="error"
@@ -544,7 +558,10 @@ export function SummaryDashboard({
                   <Box sx={{ px: 2.5, py: 1.75, borderBottom: "1px solid #e4e4e7", bgcolor: "#fafafa" }}>
                     <Tabs
                       value={activeTab}
-                      onChange={(_, value: TabType) => setActiveTab(value)}
+                      onChange={(_, value: TabType) => {
+                        if (value === activeTab) return;
+                        setActiveTab(value);
+                      }}
                       variant="scrollable"
                       scrollButtons="auto"
                       aria-label="summary dashboard sections"
@@ -585,7 +602,24 @@ export function SummaryDashboard({
                       <Tab value="topics" label={<DashboardTabLabel icon={Hash} label="ประเด็นสำคัญ" count={unreadTopicsCount} active={activeTab === "topics"} />} />
                     </Tabs>
                   </Box>
-                  <Box sx={{ p: { xs: 2.5, sm: 4 }, minHeight: 420 }}>
+                  <Box
+                    key={activeTab}
+                    sx={{
+                      p: { xs: 2.5, sm: 4 },
+                      minHeight: 420,
+                      animation: "tab-enter 240ms cubic-bezier(0.22, 0.61, 0.36, 1)",
+                      "@keyframes tab-enter": {
+                        "0%": {
+                          opacity: 0,
+                          transform: "translateY(12px) scale(0.985)",
+                        },
+                        "100%": {
+                          opacity: 1,
+                          transform: "translateY(0) scale(1)",
+                        },
+                      },
+                    }}
+                  >
                     {activeTab === "summary" && <SummaryTab summary={effectiveSummary} />}
                     {activeTab === "actions" && !isHistoryMode && (
                       <ActionsTab
@@ -1611,6 +1645,29 @@ function ActionsTab({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemIdToDelete, setItemIdToDelete] = useState<string | null>(null);
 
+  // Sort: pending before completed; within same status: today first, then oldest ascending
+  const sortedActionItems = React.useMemo(() => {
+    const todayKey = dayjs().format("YYYY-MM-DD");
+    return [...group.actionItems].sort((a, b) => {
+      if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+      const parseDate = (item: typeof a) => {
+        if (!item.assignedDate) return null;
+        const parts = item.assignedDate.split("/");
+        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        return item.assignedDate;
+      };
+      const dA = parseDate(a);
+      const dB = parseDate(b);
+      const aToday = dA === todayKey ? 1 : 0;
+      const bToday = dB === todayKey ? 1 : 0;
+      if (aToday !== bToday) return bToday - aToday; // today first
+      if (dA && dB) { if (dA < dB) return -1; if (dA > dB) return 1; }
+      if (dA && !dB) return -1;
+      if (!dA && dB) return 1;
+      return 0;
+    });
+  }, [group.actionItems]);
+
   const handleOpenCreate = () => {
     setDialogMode("create");
     setSelectedItem(null);
@@ -1673,7 +1730,7 @@ function ActionsTab({
       </Stack>
 
       <Stack spacing={1.5} sx={{ maxHeight: 390, overflowY: "auto", pr: 0.5 }}>
-        {group.actionItems.map((item) => {
+        {sortedActionItems.map((item) => {
           const completed = item.status === "completed";
           return (
             <Paper
@@ -2179,6 +2236,11 @@ function TopicsTab({
     setTopicIdToDelete(null);
   };
 
+  // Sort topics by relevance descending (highest importance first)
+  const sortedTopics = React.useMemo(() => {
+    return [...group.topics].sort((a, b) => b.relevance - a.relevance);
+  }, [group.topics]);
+
   return (
     <Stack spacing={2.5}>
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", pb: 1.5, borderBottom: "1px solid #e4e4e7" }}>
@@ -2204,7 +2266,7 @@ function TopicsTab({
       </Stack>
 
       <Stack spacing={2}>
-        {group.topics.map((topic, index) => {
+        {sortedTopics.map((topic, index) => {
           const color = topicColor(topic.category);
           return (
             <Paper 
@@ -2508,13 +2570,15 @@ function HistoryTopicsPanel({ topics }: { topics: { name: string; category: stri
       </Stack>
     );
   }
+  // Sort topics by relevance descending (highest importance first)
+  const sortedTopics = [...topics].sort((a, b) => b.relevance - a.relevance);
   return (
     <Stack spacing={2.5}>
       <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", display: "flex", alignItems: "center", gap: 0.75 }}>
         <History size={12} />
         ข้อมูลย้อนหลัง — อ่านได้อย่างเดียว
       </Typography>
-      {topics.map((topic, idx) => {
+      {sortedTopics.map((topic, idx) => {
         const colors = topicColor(topic.category);
         return (
           <Paper key={idx} elevation={0} sx={{ p: 2.5, border: `1px solid ${colors.border}`, borderLeft: `3px solid ${colors.color}`, borderRadius: 2.5, bgcolor: colors.bg }}>

@@ -5,7 +5,6 @@ import {
   Alert,
   Avatar,
   Box,
-  Button,
   Chip,
   Container,
   Divider,
@@ -22,6 +21,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { LoginButton } from "@/components/LoginButton";
 
 function GoogleIcon() {
   return (
@@ -161,7 +161,7 @@ export default async function LoginPage({
                 border: "1px solid rgba(0, 0, 0, 0.06)",
                 borderRadius: "16px",
                 overflow: "hidden",
-                bgcolor: "rgba(255, 255, 255, 0.72)", // Light premium glass
+                bgcolor: "rgba(255, 255, 255, 0.72)",
                 backdropFilter: "blur(20px)",
                 boxShadow: "0 20px 40px rgba(0, 0, 0, 0.04)",
               }}
@@ -220,7 +220,7 @@ export default async function LoginPage({
               borderRadius: "24px",
               border: "1px solid rgba(0, 0, 0, 0.08)",
               boxShadow: "0 24px 60px rgba(0, 0, 0, 0.05)",
-              bgcolor: "rgba(255, 255, 255, 0.82)", // Glassmorphic light background
+              bgcolor: "rgba(255, 255, 255, 0.82)",
               backdropFilter: "blur(20px)",
             }}
           >
@@ -285,36 +285,23 @@ export default async function LoginPage({
                     await signIn("line", { redirectTo: "/auth/redirect" });
                   }}
                 >
-                  <Button
-                    type="submit"
-                    fullWidth
+                  <LoginButton
                     variant="contained"
-                    size="large"
+                    provider="line"
                     startIcon={<LineLogo />}
                     endIcon={<ArrowRight size={18} />}
+                    label="Continue with LINE Login"
                     sx={{
-                      height: 48,
                       bgcolor: "#06C755",
                       color: "#fff",
-                      borderRadius: "12px",
-                      fontWeight: 600,
-                      justifyContent: "space-between",
-                      px: 2.5,
                       boxShadow: "0 8px 20px rgba(6,199,85,0.12)",
-                      textTransform: "none",
-                      fontSize: 14.5,
-                      transition: "all 200ms ease",
                       "&:hover": {
                         bgcolor: "#05b64d",
                         boxShadow: "0 12px 28px rgba(6,199,85,0.22)",
                         transform: "translateY(-1px)",
                       },
-                      "& .MuiButton-startIcon": { mr: 1 },
-                      "& .MuiButton-endIcon": { ml: "auto" },
                     }}
-                  >
-                    Continue with LINE Login
-                  </Button>
+                  />
                 </Box>
 
                 <Box
@@ -324,36 +311,24 @@ export default async function LoginPage({
                     await signIn("google", { redirectTo: "/auth/redirect" });
                   }}
                 >
-                  <Button
-                    type="submit"
-                    fullWidth
+                  <LoginButton
                     variant="outlined"
-                    size="large"
+                    provider="google"
                     startIcon={<GoogleIcon />}
                     endIcon={<ArrowRight size={18} />}
+                    label="Continue with Google"
                     sx={{
-                      height: 48,
-                      borderRadius: "12px",
                       color: "#1d1d1f",
                       borderColor: "rgba(0, 0, 0, 0.12)",
                       bgcolor: "rgba(255, 255, 255, 0.72)",
-                      fontWeight: 600,
-                      justifyContent: "space-between",
-                      px: 2.5,
-                      textTransform: "none",
-                      fontSize: 14.5,
-                      transition: "all 200ms ease",
                       "&:hover": {
                         borderColor: "rgba(0, 0, 0, 0.2)",
                         bgcolor: "rgba(0, 0, 0, 0.03)",
                         transform: "translateY(-1px)",
                       },
-                      "& .MuiButton-startIcon": { mr: 1 },
-                      "& .MuiButton-endIcon": { ml: "auto", color: "#86868b" },
+                      "& .MuiButton-endIcon": { color: "#86868b" },
                     }}
-                  >
-                    Continue with Google
-                  </Button>
+                  />
                 </Box>
               </Stack>
 

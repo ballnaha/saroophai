@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { requireAdmin } from "@/lib/authz";
+import { carryOverPendingHistoryActionItems } from "@/lib/actionItemCarryOver";
 
 const BANGKOK_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 
@@ -73,14 +74,16 @@ function formatLastSynced(lastSyncedAt: Date | null, fallback: string): string {
 export async function getLineGroups() {
   try {
     await requireAdmin();
+    await carryOverPendingHistoryActionItems(prisma);
 
     const dbGroups = await prisma.lineGroup.findMany({
       include: {
         contributors: true,
         actionItems: {
-          orderBy: {
-            status: "desc",
-          },
+          orderBy: [
+            { status: "desc" },
+            { assignedDate: "asc" },
+          ],
         },
         topics: true,
         attachments: {
